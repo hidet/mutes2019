@@ -1,0 +1,15 @@
+Run_pulse,run_noise,ana_target
+0,0,noise
+1,0,Mn
+2,2,noise
+3,3,noise
+4,3,Mn
+5,5,noise
+6,6,noise
+7,6,Mn
+8,8,noise
+9,8,Mn
+10,10,noise
+11,11,noise
+12,11,Mn
+13,13,noise

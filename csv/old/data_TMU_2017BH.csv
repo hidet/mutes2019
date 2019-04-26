@@ -1,0 +1,14 @@
+Run_pulse,run_noise,ana_target,exttrig,grouptrig
+0,0,noise,off,off
+1,0,Mn,off,off
+2,2,noise,off,off
+3,3,noise,off,off
+4,4,noise,off,off
+5,4,Co,off,off
+6,6,noise,off,off
+7,7,noise,off,off
+8,7,CrCo,off,off
+9,9,noise,off,off
+10,10,noise,off,off
+11,10,CrCoCu,off,off
+12,12,nosie,off,off

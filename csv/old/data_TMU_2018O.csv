@@ -1,0 +1,15 @@
+Run_pulse,run_noise,ana_target,exttrig,grouptrig
+0,0,noise,off,off
+1,1,noise,off,off
+2,1,Fe55,off,off
+4,4,noise,off,off
+5,5,noise,off,off
+6,6,noise,off,off
+7,6,Fe55,off,off
+8,6,Fe55,off,off
+9,6,Fe55,off,off
+10,6,Fe55,off,off
+11,11,noise,off,off
+12,12,noise,off,off
+13,12,Fe55,off,off
+14,12,Ni,on,on
