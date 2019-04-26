@@ -46,10 +46,6 @@ print "DATADIR = ", DATADIR
 if ANADIR == "" or DATADIR == "":
     print "[ERROR] Set MUTESANADIR and MUTESDATADIR"
     print "e.g., for bash users"
-#    print '''
-#    export MUTESHOME="$HOME/work/ana/MUTES/JPARC201807_E62"
-#    export MUTESANADIR="$MUTESHOME/ana_2018_jparc"
-#    export MUTESDATADIR="$MUTESHOME/data/TMU_2019G" '''.strip()
     sys.exit()
     
 BADCHS = [3,9,39,77,83,85,111,337,367,375,423]# initially disconnected
@@ -173,19 +169,18 @@ else:
 df = pd.read_csv(RUNINFO)
 run_list = df.iloc[:,0].tolist()
 noise_list = df.iloc[:,1].tolist()
-if isinstance(run_p,list):
-    run_p = [int(r) for r in run_p]
-    ind = run_list.index(str(run_p[0]))
-else:
-    run_p = int(run_p)
-    ind = run_list.index(str(run_p))
-irn = int(noise_list[ind])
 ana_list = df.iloc[:,2].tolist()
 exttrig_list = df.iloc[:,3].tolist()
 grptrig_list = df.iloc[:,4].tolist()
 cal_list = df.iloc[:,9].tolist()
+if isinstance(run_p,list):
+    ind = run_list.index(run_p[0])
+    run_p = [int(r) for r in run_p]
+else:
+    ind = run_list.index(run_p)
+    run_p = int(run_p)
+irn = int(noise_list[ind])
 run_n="%04d"%irn
-
 ana_target = ana_list[ind]
 exttrig = exttrig_list[ind]
 grptrig = grptrig_list[ind]
@@ -200,7 +195,7 @@ elif ana_list[ind]=="noise":
 cal_run = None if str(cal_list[ind]) == "None" else int(cal_list[ind])
 cal_noise_run = None
 if cal_run is not None:
-    calind = run_list.index(cal_run)
+    calind = run_list.index(str(cal_run))
     cal_noise_run = int(noise_list[calind])
 analist = [(run_p, int(run_n), ana_target, exttrig, grptrig, cal_run, cal_noise_run,BADCHS)]
 
