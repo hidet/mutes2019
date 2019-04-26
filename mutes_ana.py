@@ -191,10 +191,15 @@ class KHE():
         self.prime_analysis()
         self.jbrs_analysis(jbrsc_th=350,jbrsc_thn=-400)
         extall=True
-        for pr in self.pulse_runnums:
-            if (ext.check_external_trigger_data(pr))==False:
+        if self.MULTI:
+            for pr in self.pulse_runnums:
+                if (ext.check_external_trigger_data(pr))==False:
+                    extall=False
+                    print "Error: external trigger file is missing on run %d"%pr
+        else:
+            if (ext.check_external_trigger_data(self.pulse_runnums))==False:
                 extall=False
-                print "Error: external trigger file is missing on run %d"%pr
+                print "Error: external trigger file is missing on run %d"%self.pulse_runnums
 
         # merge the external trigger files
         if extall:  self.timing_analysis(forceNew=exttrigNew)

@@ -163,17 +163,22 @@ if (npar>=1):
     for sep in seps:
         if sep in str(args[0]): run_p = str(args[0]).split(sep)
     if run_p is None:
-        run_p = [str(args[0])]
+        run_p = str(args[0])
     print "analyzing runs: ",run_p
 else:
     print "Error: specify run number of MuTES ", args
     sys.exit(0)
-    
-run_p = [int(r) for r in run_p]
+
+
 df = pd.read_csv(RUNINFO)
 run_list = df.iloc[:,0].tolist()
-ind = run_list.index(str(run_p[0]))
 noise_list = df.iloc[:,1].tolist()
+if isinstance(run_p,list):
+    run_p = [int(r) for r in run_p]
+    ind = run_list.index(str(run_p[0]))
+else:
+    run_p = int(run_p)
+    ind = run_list.index(str(run_p))
 irn = int(noise_list[ind])
 ana_list = df.iloc[:,2].tolist()
 exttrig_list = df.iloc[:,3].tolist()
