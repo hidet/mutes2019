@@ -8,11 +8,12 @@ History:
 2018-07-06 ; ver 1.2; a minor update
 2019-01-31 ; ver 1.3; H.Tatsuno modified drastically, removed all plots functions and simplified
 2019-04-26 ; ver 1.4; H.Tatsuno added multiple runs analysis
+2019-05-09 ; ver 1.5; H.Tatsuno minor change
 
 """
 
 __author__ =  'a bad boy HT'
-__version__ = '1.4'
+__version__ = '1.5'
 
 import matplotlib
 matplotlib.use("Agg")
@@ -33,8 +34,8 @@ import datetime
 import pandas as pd
 import optparse
 
-import mutes_ana as KHE
-KHE= reload(KHE) # for ipython to reload when it changed
+import mutes_ana as MUTES
+MUTES= reload(MUTES) # for ipython to reload when it changed
 
 print "[START] " + __file__
 
@@ -83,7 +84,7 @@ version = __version__
 parser = optparse.OptionParser(usage=usage, version=version)
 # setting for options
 # how to use
-# -eg -REG : without forceNew, no summaryNew, no calibNew, with exttrig, grouptrig, and ROOT, ROOTEXT, ROOTGRP
+# -eg -REG : with exttrig, grouptrig, and ROOT, ROOTEXT, ROOTGRP (without forceNew, summaryNew, calibNew)
 # -fsceg -REG : all analysis with forceNew, summaryNew, calibNew, exttrig, grouptrig, and ROOT, ROOTEXT, ROOTGRP
 parser.add_option('-f', '--force',    dest='forceNew',   action='store_true',  help='True to update filter (default=False)',      metavar='FORCE',   default=False)
 parser.add_option('-s', '--summary',  dest='summaryNew', action='store_true',  help='True to update summary (default=False)',     metavar='SUMMARY', default=False)
@@ -122,15 +123,10 @@ hdf5optname    = options.hdf5optname
 
 catecut = {}
 catecut["prime"] = "on"
-if not beam=="None":
-    catecut["beam"] = beam
-if not sprmc=="None":
-    catecut["sprmc"] = sprmc
-if not jbrsc=="None":
-    catecut["jbrsc"] = sprmc
-if beam=="None" and sprmc=="None":
-    if jbrsc=="None":
-        catecut=None
+if not jbrsc=="None": catecut["jbrsc"] = jbrsc
+if not beam=="None":  catecut["beam"]  = beam
+if not sprmc=="None": catecut["sprmc"] = sprmc
+if beam=="None" and sprmc=="None": catecut=None
 
 print ""
 print "--- [OPTIONS] ----------------------"
@@ -165,7 +161,6 @@ else:
     print "Error: specify run number of MuTES ", args
     sys.exit(0)
 
-
 df = pd.read_csv(RUNINFO)
 run_list = df.iloc[:,0].tolist()
 noise_list = df.iloc[:,1].tolist()
@@ -173,12 +168,13 @@ ana_list = df.iloc[:,2].tolist()
 exttrig_list = df.iloc[:,3].tolist()
 grptrig_list = df.iloc[:,4].tolist()
 cal_list = df.iloc[:,9].tolist()
-if isinstance(run_p,list):
-    ind = run_list.index(run_p[0])
-    run_p = [int(r) for r in run_p]
-else:
-    ind = run_list.index(run_p)
-    run_p = int(run_p)
+
+if isinstance(run_p,list)==False:
+    run_p = (run_p,)
+    run_p = tuple(run_p)
+
+ind = run_list.index(run_p[0])
+run_p = [int(r) for r in run_p]
 irn = int(noise_list[ind])
 run_n="%04d"%irn
 ana_target = ana_list[ind]
@@ -200,9 +196,10 @@ if cal_run is not None:
 analist = [(run_p, int(run_n), ana_target, exttrig, grptrig, cal_run, cal_noise_run,BADCHS)]
 
 for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum, badchan in analist:
-    print "..... run, noise, target, exttrig, grptrig, cal_run, = ", pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum
+    print "..... run, noise, target, exttrig, grptrig, cal_run, cal_noise = ", pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum
     print "BADCHAN = ", badchan
-    if extflag == "off": # when external trigger or group trigger is off, those flags are forced to be false. 
+    # when external trigger or group trigger is off, those flags are forced to be false. 
+    if extflag == "off": 
     	orgEXTTRIG = EXTTRIG
         EXTTRIG = False
     if grpflag == "off":
@@ -211,19 +208,19 @@ for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, c
 #    if grouptrigmax: 
 #        GRTINFO = "./csv/grptrig_singlethread_all.txt"
     # ---------------------------------------------------------
-    k = KHE.KHE(pulse_runnums, noise_runnum, maxchans, calibration_runnum, calibration_noisenum,
-                badchan, DATADIR, DELETE, GRTINFO, COLUMN_INFO,
-                hdf5optname=hdf5optname, catecut=catecut, target=target, cut_pre=cut_pre, cut_post=cut_post)
-    k.anahide(forceNew=FORCE,summaryNew=SUMMARY,calibNew=CALIB,exttrigNew=EXTTRIG,grptrigNew=GRPTRIG)
+    mutes = MUTES.MUTES(pulse_runnums, noise_runnum, maxchans, calibration_runnum, calibration_noisenum,
+                        badchan, DATADIR, DELETE, GRTINFO, COLUMN_INFO,
+                        hdf5optname=hdf5optname, catecut=catecut, target=target,
+                        cut_pre=cut_pre, cut_post=cut_post)
+    mutes.ana(forceNew=FORCE,summaryNew=SUMMARY,calibNew=CALIB,exttrigNew=EXTTRIG,grptrigNew=GRPTRIG)
     # ---------------------------------------------------------
     if DUMPROOT:
         print "\n [dump ROOT except for pulses]"
-        k.dump_ROOT_2019(EXTTRIG=ROOTEXT, GRTRIG=ROOTGRP)
+        mutes.dump_ROOT_2019(EXTTRIG=ROOTEXT, GRTRIG=ROOTGRP)
     # ---------------------------------------------------------
-    if extflag == "off": # when external trigger or group trigger is off, those flags are back to the input values 
-    	EXTTRIG = orgEXTTRIG
-    if grpflag == "off":
-    	GRPTRIG = orgGRPTRIG
+    # when external trigger or group trigger is off, those flags are back to the input values 
+    if extflag == "off":    	EXTTRIG = orgEXTTRIG
+    if grpflag == "off":    	GRPTRIG = orgGRPTRIG
     # ---------------------------------------------------------
 
 

@@ -4,9 +4,10 @@ History:
 2018-08-16 ; ver 1.0; branched from mutes_util.py, T.H.
 2019-02-19 ; ver 1.1; modified by HT, especially the sign of adjust is opposite, removed round
 2019-02-22 ; ver 1.2; modified by HT, previous modification was WRONG!! 
+2019-05-09 ; ver 1.3; HT, spill was removfed for MUTES
 """
 
-__version__ = '1.2'
+__version__ = '1.3'
 
 import mass
 import numpy as np
@@ -24,7 +25,6 @@ def check_external_trigger_data(pulse_runnum):
     dir_p = os.path.join(datadir,"run%04d"%pulse_runnum)
     return os.path.isfile("%s/run%04d_extern_trig.hdf5"%(dir_p,pulse_runnum))
 
-#def calc_external_trigger_timing(ds,spill,forceNew=False):
 def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
     p_row_adjust = -1.*(np.array(ds.p_shift1)+np.array(ds.p_filt_phase))
     ds.p_nrp = np.asarray(ds.p_rowcount+(p_row_adjust*util.NUM_ROWS), dtype=np.int64) - util.GLOBAL_PT_OFFSET
@@ -42,7 +42,10 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
     ds.rows_until_next_external_trigger_nrp = ds.hdf5_group["rows_until_next_external_trigger_nrp"]
 
     rows_from_nearest_external_trigger = np.fmin(ds.rows_after_last_external_trigger_nrp[:], ds.rows_until_next_external_trigger_nrp[:])
-    beamOn = rows_from_nearest_external_trigger*util.ROW_TIMEBASE<20e-06# within 20 us
+    ##################################################################################
+    ########### PLEASE MODIFY THIS DEFINITION OF BEAM ON #############################
+    ##################################################################################
+    beamOn = rows_from_nearest_external_trigger*util.ROW_TIMEBASE<20e-06# within 20 us?
     ds.cuts.cut_categorical("beam", {"on": beamOn,"off": ~beamOn})
     h5_beam = ds.hdf5_group.require_dataset("beam",(ds.nPulses,),dtype=np.int32)
     h5_beam[:] = beamOn.astype(int)# becareful: the categorical cut means logical_and of good and beamOn

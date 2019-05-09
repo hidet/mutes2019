@@ -6,10 +6,11 @@ History:
 2018-07-06 ; ver 1.2; TTree format changed from ch branch to single branch, S.Y.
 2018-08-17 ; ver 1.3; file divided to mutes_ext,_group,_dump, T.H.
 2019-01-31 ; ver 1.4; drastically simplified, especially removed plot functions by a bad boy HT
+2019-05-09 ; ver 1.5; HT minor change
 
 """
 
-__version__ = '1.4'
+__version__ = '1.5'
 
 import mass
 import numpy as np
@@ -43,12 +44,11 @@ dump = reload(dump)
 tesmap = reload(tesmap)
 
 
-class KHE():
+class MUTES():
     def __init__(self,pulse_runnums, noise_runnum, maxchans,
                  calibration_runnum, calibration_noisenum, badchans,
                  DATADIR, DELETE, GRTINFO, COLUMN_INFO,
                  hdf5optname=None, catecut=None, target="Mn", cut_pre=0, cut_post=0):
-        self.pulse_runnums=pulse_runnums
         self.noise_runnum=noise_runnum
         self.calibration_runnum=calibration_runnum
         self.calibration_noisenum=calibration_noisenum
@@ -59,22 +59,17 @@ class KHE():
         self.cut_pre = cut_pre
         self.cut_post = cut_post
         self.badchans = badchans
+        if isinstance(pulse_runnums,list)==False:
+            pulse_runnums = (pulse_runnums,)
+            self.pulse_runnums=tuple(pulse_runnums)
+        self.pulse_runnums=pulse_runnums
         self.multiruns=""
-        if isinstance(pulse_runnums,list):
-            pulse_files,noise_files = util.get_multiple_file_lists(self.pulse_runnums,self.noise_runnum,
-                                                                   maxchans,self.badchans,self.DATADIR)
-            first_pulse_file = pulse_files[0][0]
-            self.first_pulse_runnum=self.pulse_runnums[0]
-            self.MULTI=True
-            for run in self.pulse_runnums:
-                self.multiruns += "_%s"%(run)
-        else:
-            pulse_files,noise_files = util.get_file_lists(self.pulse_runnums,self.noise_runnum,
-                                                          maxchans,self.badchans,self.DATADIR)
-            first_pulse_file = pulse_files[0]
-            self.first_pulse_runnum=self.pulse_runnums
-            self.MULTI=False
-        
+        pulse_files,noise_files = util.get_multiple_file_lists(self.pulse_runnums,self.noise_runnum,
+                                                               maxchans,self.badchans,self.DATADIR)
+        first_pulse_file = pulse_files[0][0]
+        self.first_pulse_runnum=self.pulse_runnums[0]
+        for run in self.pulse_runnums:
+            self.multiruns += "_%s"%(run)
         self.usechans = util.get_usechans(self.first_pulse_runnum,self.noise_runnum,maxchans,self.badchans,self.DATADIR)
         self.target = target
         self.catecut = catecut
@@ -100,18 +95,19 @@ class KHE():
                 add += "_trans%d"%self.calibration_runnum
             if self.cut_pre>0 or self.cut_post>0:
                 add += str("_pre%03d_post%03d" %(self.cut_pre,self.cut_post))
-            if self.catecut is not None and self.catecut.has_key('beam'):
-                if self.catecut['beam']=='off': add = add + "_spilloff"
-                elif self.catecut['beam']=='on': add = add + "_spillon"
-            if self.catecut is not None and self.catecut.has_key('sprmc'):
-                if self.catecut['sprmc']=='off': add = add + "_sprmcoff"
-                elif self.catecut['sprmc']=='on': add = add + "_sprmcon"
-            if self.catecut is not None and self.catecut.has_key('jbrsc'):
-                if self.catecut['jbrsc']=='off': add = add + "_jbrscoff"
-                elif self.catecut['jbrsc']=='on': add = add + "_jbrscon"
-            if self.catecut is not None and self.catecut.has_key('prime'):
-                if self.catecut['prime']=='off': add = add + "_sec"
-                elif self.catecut['prime']=='on': add = add + "_prime"
+            if self.catecut is not None:
+                if self.catecut.has_key('beam'):
+                    if self.catecut['beam']=='off':  add += "_spilloff"
+                    elif self.catecut['beam']=='on': add += "_spillon"
+                if self.catecut.has_key('sprmc'):
+                    if self.catecut['sprmc']=='off':  add += "_sprmcoff"
+                    elif self.catecut['sprmc']=='on': add += "_sprmcon"
+                if self.catecut.has_key('jbrsc'):
+                    if self.catecut['jbrsc']=='off':  add += "_jbrscoff"
+                    elif self.catecut['jbrsc']=='on': add += "_jbrscon"
+                if self.catecut.has_key('prime'):
+                    if self.catecut['prime']=='off':  add += "_sec"
+                    elif self.catecut['prime']=='on': add += "_prime"
             self.hdf5_filename       = util.generate_hdf5_filename(first_pulse_file,"_noi%04d"%self.noise_runnum+"_mass_2019"+add)
             self.hdf5_noisefilename  = util.generate_hdf5_filename(first_pulse_file,"_noi%04d"%self.noise_runnum+"_noise"+add)
             self.root_filename       = util.generate_user_root_filename(self.rootdir,"run%04d_noi%04d"%(self.first_pulse_runnum,self.noise_runnum)+"_mass_2019"+add)
@@ -163,7 +159,7 @@ class KHE():
         return cuts
         
     # simple analysis by H.Tatsuno
-    def anahide(self,forceNew=False,summaryNew=False,calibNew=False,exttrigNew=False,grptrigNew=False,bcutflag=True):
+    def ana(self,forceNew=False,summaryNew=False,calibNew=False,exttrigNew=False,grptrigNew=False,bcutflag=True):
         if forceNew==True:# if filter is changed, everything will change
             calibNew=True
         # --- set good for bad channels ---
@@ -183,26 +179,24 @@ class KHE():
         if bcutflag==True:
             bcut = self.get_basic_cuts()
             self.data.apply_cuts(bcut, forceNew=True)
-                
+
+        # set good flag
         for ds in self.data:
             h5_good = ds.hdf5_group.require_dataset("good",(ds.nPulses,),dtype=np.int32)
             h5_good[:] = np.array(ds.good()).astype(int)
             ds.goodflag = ds.hdf5_group["good"]
-        
-        # please fill categorical cuts first (e.g., beam "on:off" or sprmc "on:off")
+
+        # setting categolical cuts
         self.prime_analysis()
         self.jbrs_analysis(jbrsc_th=350,jbrsc_thn=-400)
+        # external trigger data checking
         extall=True
-        if self.MULTI:
-            for pr in self.pulse_runnums:
-                if (ext.check_external_trigger_data(pr))==False:
-                    extall=False
-                    print "Error: external trigger file is missing on run %d"%pr
-        else:
-            if (ext.check_external_trigger_data(self.pulse_runnums))==False:
+        for pr in self.pulse_runnums:
+            if (ext.check_external_trigger_data(pr))==False:
                 extall=False
-                print "Error: external trigger file is missing on run %d"%self.pulse_runnums
+                print "Error: external trigger file is missing on run %d, skip timing all analysis"%pr
         if extall:  self.timing_analysis(forceNew=exttrigNew)
+        # group trigger analysis
         self.group_trigger_peak_region_analysis(forceNew=grptrigNew,sprmc_th=10,sprmc_thn=-10)
         # basic analysis
         if self.bonly==False:
@@ -214,12 +208,13 @@ class KHE():
             self.data.phase_correct(forceNew=forceNew,category=self.catecut)
             self.mass_calibration_analysis(forceNew=calibNew,category=self.catecut)
         else:
+            # transfer calibration is activated by the "calrun" in the csv file
             self.mass_analysis_transfer_calibration(forceNew=forceNew)
 
     def mass_calibration_analysis(self, forceNew=False, category=None):
-        data = self.data
         self.calib_list = []
         if self.calibration_runnum is None:
+            nextra=3
             if self.target == "CrCoCu":
                 calib_list = ["CrKAlpha","CrKBeta","CoKAlpha","CoKBeta","CuKAlpha"]
             elif self.target == "CrCo":
@@ -228,6 +223,10 @@ class KHE():
                 calib_list = ["MnKAlpha","MnKBeta"]
             elif self.target == "Fe":             
                 calib_list = ["FeKAlpha","FeKBeta"]
+            elif self.target == "Co57":# tempolary newly added for Co57 analysis, pls check data_TMU_XXXX.csv file
+                calib_list = ["FeKAlpha","FeKBeta","Co57_14keV"]
+                mass.STANDARD_FEATURES["Co57_14keV"]=14412.95# 14.4 keV
+                nextra=0
             else:
                 print "[Error] calib_list is out of range ", self.target 
             self.calib_list = calib_list
@@ -235,9 +234,8 @@ class KHE():
             # NOTE: self.p_energy is overwritten with the last used attr
             for attr in attrs:
                 print "......      in mass_calibration_analysis : attr = ", attr
-                data.calibrate(attr,calib_list,size_related_to_energy_resolution=100,
-                               forceNew=forceNew,category=category)
-
+                self.data.calibrate(attr,calib_list,size_related_to_energy_resolution=100,nextra=nextra,forceNew=forceNew,category=category)
+                
     def mass_analysis_transfer_calibration(self, forceNew=False):
         calh5name = self.calibration_hdf5_filename
         if not os.path.isfile(calh5name):
@@ -297,7 +295,7 @@ class KHE():
             ext.calc_external_trigger_timing(ds,self.external_trigger_rowcount,forceNew=forceNew)
 
     def prime_analysis(self):
-        print "KHE prime analysis starts... (always update)"
+        print "MUTES prime analysis starts... (always update)"
         self.data.register_categorical_cut_field("prime",["on","off"])
         for ds in self.data:
             grti = np.array(ds.p_grouptrig)# group trig ch info
@@ -309,7 +307,7 @@ class KHE():
             h5_prime[:] = prima.astype(int)
             
     def jbrs_analysis(self,jbrsc_th=350,jbrsc_thn=-400):
-        print "KHE jbr analysis starts... (always update)"
+        print "MUTES jbr analysis starts... (always update)"
         self.data.register_categorical_cut_field("jbrsc",["on","off"])
         for ds in self.data:
             jbrscp = np.array(ds.p_jbr_region_sum)<jbrsc_th
