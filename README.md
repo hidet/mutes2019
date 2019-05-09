@@ -14,12 +14,12 @@ Be careful, the default value is `False` or `None`.
 
 For examples:
 - calibration run (first)
-```python run_mutes_single.py 54 -R```
-- calibration run (forceNew)
-```python run_mutes_single.py 54 -fsc -R```
+```python run_mutes_single.py 67 -R```
+- calibration run (update)
+```python run_mutes_single.py 67 -fsc -R```
 - beam run (first)
 ```python run_mutes_single.py 58,59 -eg -REG```
-- beam run (forceNew)
+- beam run (update)
 ```python run_mutes_single.py 58,59 -fsceg -REG```
 
 ```
