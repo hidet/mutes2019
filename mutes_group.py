@@ -18,10 +18,10 @@ import sys
 def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
     # GRTINFO is group trigger channel map
     for ds in data:
-        if not forceNew:
+        if forceNew==False:
             print "ch%d group trigger ana skipped."%(ds.channum)
             try:
-                print "loading secondary peak region data from hdf5 file."
+                print "try to load secondary peak region data from hdf5 file."
                 ds.sec_pr_sum      = ds.hdf5_group["sec_pr_sum"]
                 ds.sec_pr_max      = ds.hdf5_group["sec_pr_max"]
                 ds.sec_pr_mean     = ds.hdf5_group["sec_pr_mean"]
@@ -34,10 +34,10 @@ def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
                 ds.sec_fdmean      = ds.hdf5_group["sec_fdmean"]
                 ds.sec_fdmax       = ds.hdf5_group["sec_fdmax"]
             except:
-                print "ch%d group trigger ana is not done yet."%(ds.channum)
+                print "no success, ch%d group trigger ana is not done yet."%(ds.channum)
                 return False
             continue
-        elif forceNew: print "ch%d group trig analysis ...."%(ds.channum)
+        elif forceNew==True: print "ch%d group trig analysis ...."%(ds.channum)
             
         npl = ds.nPulses
         p_rows = np.array(ds.p_rowcount[:])

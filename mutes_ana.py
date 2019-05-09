@@ -228,19 +228,22 @@ class MUTES():
                 mass.STANDARD_FEATURES["Co57_14keV"]=14412.95# 14.4 keV
                 nextra=0
             else:
-                print "[Error] calib_list is out of range ", self.target 
+                print "[Error] calib_list is out of range ", self.target
+                return False
             self.calib_list = calib_list
             attrs=["p_filt_value_dc","p_filt_value_phc"]
             # NOTE: self.p_energy is overwritten with the last used attr
             for attr in attrs:
                 print "......      in mass_calibration_analysis : attr = ", attr
+                print self.target, self.calib_list
                 self.data.calibrate(attr,calib_list,size_related_to_energy_resolution=100,nextra=nextra,forceNew=forceNew,category=category)
                 
     def mass_analysis_transfer_calibration(self, forceNew=False):
         calh5name = self.calibration_hdf5_filename
         if not os.path.isfile(calh5name):
-	    print "%s is not found..."%calh5name
-            return
+	    print "%s is not found... end the calibration transfer"%calh5name
+            print "Please create %s OR set calrun as None in the csv file"%calh5name
+            return False
         self.caldata = mass.TESGroupHDF5(calh5name)
         for ds in self.data:
             if (self.caldata.channel.has_key(ds.channum) and
@@ -281,7 +284,7 @@ class MUTES():
         
 
     def timing_analysis(self,forceNew=False):
-        print "External trigger timing analysis starts...", forceNew
+        print "External trigger timing analysis: ", forceNew
         self.data.register_categorical_cut_field("beam",["on","off"])
         ds = self.data.first_good_dataset
         util.init_row_timebase(ds)
@@ -326,7 +329,7 @@ class MUTES():
         2018/07/05, S.Yamada, updated to use 37 as a default threshoud. 
         2019/01/20, H.Tatsuno, 10 is a good starting point after removed MUX neighbor, and added the limit of negative side
         """        
-        print "group trigger analysis starts...", forceNew
+        print "group trigger analysis: ", forceNew
         if self.catecutname == "nocatecut":
             pass
         else:
@@ -335,8 +338,9 @@ class MUTES():
         print "forceNew=", forceNew,", catecutname = ", self.catecutname
         self.data.register_categorical_cut_field("sprmc",["on","off"])
         flag=grp.calc_group_trigger_params(self.data,self.GRTINFO,forceNew=forceNew)
-        if not flag:
-            print "Warning: group trigger analysis seems to be strange."
+        if flag==False:
+            #print "Warning: group trigger analysis seems to be strange."
+            print "group trigger analysis is OFF"
             return
         for ds in self.data:
             sprmcp = np.array(ds.sec_pr_mean)<sprmc_th# secondary peak region mean cut
