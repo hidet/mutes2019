@@ -276,11 +276,14 @@ print "filt_value only good events", filt_value[g]
 print "energy only good events", energy[g]
 
 # how to plot pulse
+plt.close('all')
 plt.ion()
+
 plt.figure()
 x=np.arange(nsamples)
 x=x-npresamples
-plt.plot(x,pulse0)
+first_good_pulse_idx = np.where(g)[0][0]
+plt.plot(x,ds.read_trace(first_good_pulse_idx))
 
 plt.figure()
 plt.plot(timestamp[g],pretrig_mean[g])
