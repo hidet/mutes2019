@@ -56,7 +56,7 @@ BADCHS.extend([17])# ?? is this strange?
 BADCHS.sort()
 
 #maxchans = 240
-maxchans = 30
+maxchans = 50
 print "maxchans is not full, this is a test mode, please do not use grp trigger"
 
 if os.path.isdir(DATADIR)==False: 
@@ -234,7 +234,7 @@ ds1 = data.first_good_dataset
 # data set of channel11 (if exists)
 ds11 = data.channel[11]
 
-ds = data.channel[61]
+ds = data.channel[99]
 # good event array
 g=ds.good()
 
@@ -271,20 +271,26 @@ pulse_last = ds.read_trace(npulse-1)
 
 
 # how to select good event
-# just extract indices with [g]
+# just extract indices with [g] g=ds.good()
 print "filt_value only good events", filt_value[g]
 print "energy only good events", energy[g]
 
 # how to plot pulse
-x=np.arange(nsamples)
-x=x-npresamples
-
-
 plt.ion()
 plt.figure()
+x=np.arange(nsamples)
+x=x-npresamples
 plt.plot(x,pulse0)
 
 plt.figure()
 plt.plot(timestamp[g],pretrig_mean[g])
 
-plt.show()
+plt.figure()
+# how to fit
+linename="MnKAlpha"
+elo,ehi = mass.STANDARD_FEATURES[linename]-50,mass.STANDARD_FEATURES[linename]+50
+edges = np.arange(elo,ehi,1)
+counts, _ = np.histogram(ds.p_energy[ds.good()],edges)
+fitter = getattr(mass,linename+"Fitter")()
+fitter.fit(counts,edges,plot=True)
+

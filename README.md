@@ -14,9 +14,9 @@ Be careful, the default value is `False` or `None`.
 
 For examples:
 - calibration run (first)
-```python run_mutes_single.py 67 -R```
+```python run_mutes_single.py 76 -R```
 - calibration run (update)
-```python run_mutes_single.py 67 -fsc -R```
+```python run_mutes_single.py 76 -fsc -R```
 - beam run (first)
 ```python run_mutes_single.py 58,59 -eg -REG```
 - beam run (update)
