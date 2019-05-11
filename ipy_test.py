@@ -279,21 +279,47 @@ print "energy only good events", energy[g]
 plt.close('all')
 plt.ion()
 
-plt.figure()
 x=np.arange(nsamples)
 x=x-npresamples
-first_good_pulse_idx = np.where(g)[0][0]
-plt.plot(x,ds.read_trace(first_good_pulse_idx))
+good_pulse_idx = np.where(g)[0]
+bad_pulse_idx = np.where(~g)[0]
+plt.figure()
+for i in range(5):
+    plt.plot(x,ds.read_trace(good_pulse_idx[i]))
+
+plt.figure()
+for i in range(5):
+    plt.plot(x,ds.read_trace(bad_pulse_idx[i]))
 
 plt.figure()
 plt.plot(timestamp[g],pretrig_mean[g])
 
-plt.figure()
 # how to fit
+plt.figure()
 linename="MnKAlpha"
 elo,ehi = mass.STANDARD_FEATURES[linename]-50,mass.STANDARD_FEATURES[linename]+50
 edges = np.arange(elo,ehi,1)
 counts, _ = np.histogram(ds.p_energy[ds.good()],edges)
-fitter = getattr(mass,linename+"Fitter")()
-fitter.fit(counts,edges,plot=True)
+fitter = mass.getfitter(linename)
+fitter.fit(counts,edges,plot=False)
+params = fitter.last_fit_params[:]
+params[fitter.param_meaning["tail_frac"]]=0.25
+params[fitter.param_meaning["dP_dE"]]=1
+params[fitter.param_meaning["resolution"]]=
+label=True
+label="full"
+fitter.fit(counts,edges,params=params,hold=[2],vary_tail=True,plot=True,ph_units='eV',label=label)
+# hold[2]: fixing dP_dE
+print fitter.result_string()
 
+# NOTE parameters of MultiLorentzianComplexFitter
+#    param_meaning = {
+#        "resolution": 0,
+#        "peak_ph": 1,
+#        "dP_dE": 2,
+#        "amplitude": 3,
+#        "background": 4,
+#        "bg_slope": 5,
+#        "tail_frac": 6,
+#        "tail_length": 7
+#    }
