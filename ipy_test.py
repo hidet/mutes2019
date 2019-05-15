@@ -16,7 +16,7 @@ __author__ =  'a bad boy HT'
 __version__ = '1.5'
 
 import matplotlib
-#matplotlib.use("Agg")
+matplotlib.use("Agg")
 import mass
 import monkeypatch # patches mass to avoid crashes
 import numpy as np
@@ -55,9 +55,9 @@ BADCHS.extend([5,177])# strange channels
 BADCHS.extend([17])# ?? is this strange?
 BADCHS.sort()
 
-#maxchans = 240
-maxchans = 50
-print "maxchans is not full, this is a test mode, please do not use grp trigger"
+maxchans = 240
+#maxchans = 50
+#print "maxchans is not full, this is a test mode, please do not use grp trigger"
 
 if os.path.isdir(DATADIR)==False: 
     print "%s is missing"%DATADIR
@@ -225,101 +225,282 @@ for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, c
     # ---------------------------------------------------------
 
 
-
-
 # all data
 data = mutes.data
-# data set of first good channel
-ds1 = data.first_good_dataset
-# data set of channel11 (if exists)
-ds11 = data.channel[11]
+chans=data.channel.keys()
 
-ds = data.channel[99]
-# good event array
-g=ds.good()
+## data set of first good channel
+#ds1 = data.first_good_dataset
+## data set of channel11 (if exists)
+#ds11 = data.channel[11]
+#
+#ds = data.channel[99]
+## good event array
+#g=ds.good()
+#
+## filtered values
+#filt_value = ds.p_filt_value
+## with drift correction
+#filt_value_dc = ds.p_filt_value_dc
+## with drift correction + phase correction
+#filt_value_phc = ds.p_filt_value_phc
+## if calibration is succeeded
+#energy        = ds.p_energy
+## others
+#pretrig_mean  = ds.p_pretrig_mean
+#pretrig_rms   = ds.p_pretrig_rms
+#pulse_average = ds.p_pulse_average
+#peak_time     = ds.p_peak_time
+#peak_value    = ds.p_peak_value
+#rise_time     = ds.p_rise_time
+#rowcount      = ds.p_rowcount
+#timestamp     = ds.p_timestamp
+#
+## number of pulses
+#npulse      = ds.nPulses
+## number of samples (1024)
+#nsamples    = ds.nSamples
+## number of pre-samples (256)
+#npresamples = ds.nPresamples
+#
+## pulse data (1024)
+#pulse0 = ds.read_trace(0)
+#pulse1 = ds.read_trace(1)
+##.....
+#pulse_last = ds.read_trace(npulse-1)
+#
+#
+## how to select good event
+## just extract indices with [g] g=ds.good()
+#print "filt_value only good events", filt_value[g]
+#print "energy only good events", energy[g]
+#
+## how to plot pulse
+#plt.close('all')
+#plt.ion()
+#
+#x=np.arange(nsamples)
+#x=x-npresamples
+#good_pulse_idx = np.where(g)[0]
+#bad_pulse_idx = np.where(~g)[0]
+#plt.figure()
+#for i in range(5):
+#    plt.plot(x,ds.read_trace(good_pulse_idx[i]))
+#
+#plt.figure()
+#for i in range(5):
+#    plt.plot(x,ds.read_trace(bad_pulse_idx[i]))
+#
+#plt.figure()
+#plt.plot(timestamp[g],pretrig_mean[g])
+#
 
-# filtered values
-filt_value = ds.p_filt_value
-# with drift correction
-filt_value_dc = ds.p_filt_value_dc
-# with drift correction + phase correction
-filt_value_phc = ds.p_filt_value_phc
-# if calibration is succeeded
-energy        = ds.p_energy
-# others
-pretrig_mean  = ds.p_pretrig_mean
-pretrig_rms   = ds.p_pretrig_rms
-pulse_average = ds.p_pulse_average
-peak_time     = ds.p_peak_time
-peak_value    = ds.p_peak_value
-rise_time     = ds.p_rise_time
-rowcount      = ds.p_rowcount
-timestamp     = ds.p_timestamp
 
-# number of pulses
-npulse      = ds.nPulses
-# number of samples (1024)
-nsamples    = ds.nSamples
-# number of pre-samples (256)
-npresamples = ds.nPresamples
+# ------------------------------------------------------------
 
-# pulse data (1024)
-pulse0 = ds.read_trace(0)
-pulse1 = ds.read_trace(1)
-#.....
-pulse_last = ds.read_trace(npulse-1)
+def localfit(ds,linename):
+    '''
+     NOTE parameters of MultiLorentzianComplexFitter
+        param_meaning = {
+            "resolution": 0,
+            "peak_ph": 1,
+            "dP_dE": 2,
+            "amplitude": 3,
+            "background": 4,
+            "bg_slope": 5,
+            "tail_frac": 6,
+            "tail_length": 7
+        }
+    '''
+    elo,ehi = mass.STANDARD_FEATURES[linename]-50,mass.STANDARD_FEATURES[linename]+50
+    edges = np.arange(elo,ehi,1)
+    counts, _ = np.histogram(ds.p_energy[ds.good()],edges)
+    fitter = mass.getfitter(linename)
+    fitter.fit(counts,edges,plot=False)
+    params = fitter.last_fit_params[:]
+    params[fitter.param_meaning["tail_frac"]]=0.25
+    params[fitter.param_meaning["dP_dE"]]=1
+    params[fitter.param_meaning["resolution"]]=6
+    fitter.fit(counts,edges,params=params,hold=[2],vary_tail=True,plot=False)
+    # hold[2]: fixing dP_dE
+    #print "---------------------------"
+    #print fitter.result_string()
+    #print "---------------------------"
+    return fitter
 
 
-# how to select good event
-# just extract indices with [g] g=ds.good()
-print "filt_value only good events", filt_value[g]
-print "energy only good events", energy[g]
+def decay_time_rough(ds,idx):
+    y = ds.read_trace(idx)-ds.p_pretrig_mean[idx]
+    peak_value = ds.p_peak_value[idx]
+    peak_index = ds.p_peak_index[idx]
+    dp = peak_value/np.exp(1)
+    y2 = y[peak_index:]
+    dis = np.where(np.abs(y2-dp)<50)[0]
+    if len(dis==0):
+        dis = np.where(np.abs(y2-dp)<100)[0]
+    dt = np.mean(dis)*ds.timebase*1e6# micro sec
+    return dt
+    
 
-# how to plot pulse
-plt.close('all')
-plt.ion()
-
-x=np.arange(nsamples)
-x=x-npresamples
-good_pulse_idx = np.where(g)[0]
-bad_pulse_idx = np.where(~g)[0]
-plt.figure()
-for i in range(5):
-    plt.plot(x,ds.read_trace(good_pulse_idx[i]))
-
-plt.figure()
-for i in range(5):
-    plt.plot(x,ds.read_trace(bad_pulse_idx[i]))
-
-plt.figure()
-plt.plot(timestamp[g],pretrig_mean[g])
+# ------------------------------------------------------------
 
 # how to fit
-plt.figure()
-linename="MnKAlpha"
-elo,ehi = mass.STANDARD_FEATURES[linename]-50,mass.STANDARD_FEATURES[linename]+50
-edges = np.arange(elo,ehi,1)
-counts, _ = np.histogram(ds.p_energy[ds.good()],edges)
-fitter = mass.getfitter(linename)
-fitter.fit(counts,edges,plot=False)
-params = fitter.last_fit_params[:]
-params[fitter.param_meaning["tail_frac"]]=0.25
-params[fitter.param_meaning["dP_dE"]]=1
-params[fitter.param_meaning["resolution"]]=
-label=True
-label="full"
-fitter.fit(counts,edges,params=params,hold=[2],vary_tail=True,plot=True,ph_units='eV',label=label)
-# hold[2]: fixing dP_dE
-print fitter.result_string()
+if ana_target=="Mn":
+    linename="MnKAlpha"
+elif ana_target=="Fe" or ana_target=="Co57":
+    linename="FeKAlpha"
 
-# NOTE parameters of MultiLorentzianComplexFitter
-#    param_meaning = {
-#        "resolution": 0,
-#        "peak_ph": 1,
-#        "dP_dE": 2,
-#        "amplitude": 3,
-#        "background": 4,
-#        "bg_slope": 5,
-#        "tail_frac": 6,
-#        "tail_length": 7
-#    }
+from matplotlib.backends.backend_pdf import PdfPages
+import csv
+import math
+
+ncols = 8
+nrows = 30
+divx1, divy1 = 6, 5
+divx2, divy2 = 2, 2
+
+outdir="./output/"
+fresolname=outdir+'run%d_resol.csv'%(run_p[0])
+
+# energy resolution
+#f = open(fresolname, 'w')
+#writer = csv.writer(f, lineterminator='\n')
+#res_list=[]
+#pdfname=outdir+"run%d_fit_%s.pdf"%(run_p[0],linename)
+#with PdfPages(pdfname) as pdf:
+#    print "printing...", pdfname
+#    for icol in xrange(1,ncols+1,1):
+#        fig = plt.figure(figsize=(20,15))
+#        for ich in xrange(1,nrows+1,1):
+#            ch = (icol-1)*nrows*2+ich*2-1
+#            if ch in chans:
+#                ds = data.channel[ch]
+#                fitter = localfit(ds,linename)
+#                res = fitter.last_fit_params_dict["resolution"][0]
+#                res_err = fitter.last_fit_params_dict["resolution"][1]
+#                ch = ds.channum
+#                print "%03d,%.2f,%.2f"%(ch,res,res_err)
+#                if math.isnan(res):
+#                    res=1e3
+#                    res_err=1e3
+#                res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err])
+#                ax = plt.subplot(divx1,divy1,ich)
+#                fitter.plot(axis=ax,ph_units='eV')
+#                ax.set_title("chan %d"%ch)
+#        fig.tight_layout()
+#        pdf.savefig()
+#        plt.close()
+#writer.writerows(res_list)
+#f.close()
+#print "%s is created."%pdfname
+#print "%s is created."%fresolname
+
+chs=[]
+resols=[]
+if os.path.isfile(fresolname):
+    df = pd.read_csv(fresolname,header=None)
+    chs    = df.iloc[:,0].tolist()
+    resols = df.iloc[:,1].tolist()
+    
+
+pdfname=outdir+"run%d_pretrig_mean.pdf"%(run_p[0])
+with PdfPages(pdfname) as pdf:
+    print "printing...", pdfname
+    for icol in xrange(1,ncols+1,1):
+        fig = plt.figure(figsize=(20,15))
+        for ich in xrange(1,nrows+1,1):
+            ch = (icol-1)*nrows*2+ich*2-1
+            if ch in chans:
+                ds = data.channel[ch]
+                ax = plt.subplot(divx1,divy1,ich)
+                g=ds.good()
+                ax.scatter(ds.p_timestamp[g],ds.p_pretrig_mean[g])
+                ax.set_xlabel("timestamp")
+                ax.set_ylabel("pretrig mean")
+                ch = ds.channum
+                print "%03d"%(ch)
+                ax.set_title("chan %d"%ch)
+                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+        fig.tight_layout()
+        pdf.savefig()
+        plt.close()
+
+
+
+edges = np.arange(5000,15010,10)
+pdfname=outdir+"run%d_filt_value.pdf"%(run_p[0])
+with PdfPages(pdfname) as pdf:
+    print "printing...", pdfname
+    for icol in xrange(1,ncols+1,1):
+        fig = plt.figure(figsize=(20,15))
+        for ich in xrange(1,nrows+1,1):
+            ch = (icol-1)*nrows*2+ich*2-1
+            if ch in chans:
+                ds = data.channel[ch]
+                ax = plt.subplot(divx1,divy1,ich)
+                counts, _ = np.histogram(ds.p_filt_value[ds.good()],edges)
+                ax.step(edges[:-1],counts)
+                ch = ds.channum
+                print "%03d"%(ch)
+                ax.set_title("chan %d filt_value"%ch)
+                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+        fig.tight_layout()
+        pdf.savefig()
+        plt.close()
+
+
+attr_phc='p_filt_value_phc'
+attr_dc='p_filt_value_dc'
+pdfname=outdir+"run%d_calibration_curve.pdf"%(run_p[0])
+with PdfPages(pdfname) as pdf:
+    print "printing...", pdfname
+    for icol in xrange(1,ncols+1,1):
+        fig = plt.figure(figsize=(20,15))
+        for ich in xrange(1,nrows+1,1):
+            ch = (icol-1)*nrows*2+ich*2-1
+            if ch in chans:
+                ds = data.channel[ch]
+                ax = plt.subplot(divx1,divy1,ich)
+                if ds.calibration.has_key(attr_phc): cal = ds.calibration[attr_phc]
+                elif ds.calibration.has_key(attr_dc):cal = ds.calibration[attr_dc]
+                else: continue
+                cal.plot(axis=ax)
+                ch = ds.channum
+                print "%03d"%(ch)
+                ax.set_title("chan %d energy calibration curve"%ch)
+                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+        fig.tight_layout()
+        pdf.savefig()
+        plt.close()
+
+
+x=np.arange(1024)
+x=x-256
+pdfname=outdir+"run%d_good_pulses.pdf"%(run_p[0])
+with PdfPages(pdfname) as pdf:
+    print "printing...", pdfname
+    for icol in xrange(1,ncols+1,1):
+        fig = plt.figure(figsize=(20,15))
+        for ich in xrange(1,nrows+1,1):
+            ch = (icol-1)*nrows*2+ich*2-1
+            if ch in chans:
+                ds = data.channel[ch]
+                ax = plt.subplot(divx1,divy1,ich)
+                good_pulse_idx = np.where(ds.good())[0]
+
+                for i in range(2):
+                    y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
+                    dt = decay_time_rough(ds,good_pulse_idx[i])
+                    ax.plot(x*ds.timebase*1e3,y,label="decay time = %.0f us"%dt)
+                    ax.set_xlabel("time (ms)")
+                    ax.set_ylabel("fead back value (arb)")
+                
+                ch = ds.channum
+                print "%03d"%(ch)
+                ax.set_title("chan %d"%ch)
+                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+                ax.legend()
+        fig.tight_layout()
+        pdf.savefig()
+        plt.close()
+
