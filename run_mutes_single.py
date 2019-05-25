@@ -9,14 +9,15 @@ History:
 2019-01-31 ; ver 1.3; H.Tatsuno modified drastically, removed all plots functions and simplified
 2019-04-26 ; ver 1.4; H.Tatsuno added multiple runs analysis
 2019-05-09 ; ver 1.5; H.Tatsuno minor change
+2019-05-22 ; ver 1.6; H.Tatsuno minor change
 
 """
 
 __author__ =  'a bad boy HT'
-__version__ = '1.5'
+__version__ = '1.6'
 
 import matplotlib
-matplotlib.use("Agg")
+#matplotlib.use("Agg")
 import mass
 import monkeypatch # patches mass to avoid crashes
 import numpy as np
@@ -51,8 +52,8 @@ if ANADIR == "" or DATADIR == "":
     
 BADCHS = [3,9,39,77,83,85,111,337,367,375,423]# initially disconnected
 BADCHS.extend([117,203,233])# bad channels
-BADCHS.extend([5,177])# strange channels
-BADCHS.extend([17])# ?? is this strange?
+BADCHS.extend([5,177,257,265,293])# strange channels
+#BADCHS.extend([17])# ?? is this strange?
 BADCHS.sort()
 
 maxchans = 240
@@ -100,7 +101,6 @@ parser.add_option('--sprmc',  dest='sprmc',    action="store",type=str, help='se
 parser.add_option('--jbrsc',  dest='jbrsc',    action="store",type=str, help='set jbrsc catecut (default=None, on or off)',default="None")
 parser.add_option('--pre',    dest='cut_pre',  action="store",type=int, help='set cut for pre samples',default=0)
 parser.add_option('--post',   dest='cut_post', action="store",type=int, help='set cut for post samples',default=0)
-parser.add_option('--hdf5optname',  dest='hdf5optname', action="store", type=str, help='add optional name for hdf5 (default=None)', default=None)
 
 options,args = parser.parse_args()
 
@@ -119,14 +119,19 @@ sprmc          = options.sprmc
 jbrsc          = options.jbrsc
 cut_pre        = options.cut_pre
 cut_post       = options.cut_post
-hdf5optname    = options.hdf5optname
+
+#use_new_filters=False
+use_new_filters=True
 
 catecut = {}
-catecut["prime"] = "on"
-if not jbrsc=="None": catecut["jbrsc"] = jbrsc
-if not beam=="None":  catecut["beam"]  = beam
+prime = "on"; catecut["prime"] = prime;
 if not sprmc=="None": catecut["sprmc"] = sprmc
-if beam=="None" and sprmc=="None": catecut=None
+if not beam=="None":  catecut["beam"]  = beam
+if not jbrsc=="None": catecut["jbrsc"] = jbrsc
+
+# adjust
+if EXTTRIG and DUMPROOT: ROOTEXT=True
+if GRPTRIG and DUMPROOT: ROOTGRP=True
 
 print ""
 print "--- [OPTIONS] ----------------------"
@@ -140,7 +145,6 @@ print "    DELETE         = ", DELETE
 print "    catecut        = ", catecut
 print "    cut_pre        = ", cut_pre
 print "    cut_post       = ", cut_post
-print "    hdf5optname    = ", hdf5optname
 print ""
 print "  (ROOT)             "
 print "    DUMPROOT       = ", DUMPROOT
@@ -198,29 +202,47 @@ analist = [(run_p, int(run_n), ana_target, exttrig, grptrig, cal_run, cal_noise_
 for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum, badchan in analist:
     print "..... run, noise, target, exttrig, grptrig, cal_run, cal_noise = ", pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum
     print "BADCHAN = ", badchan
+    # ---------------------------------------------------------
     # when external trigger or group trigger is off, those flags are forced to be false. 
     if extflag == "off": 
     	orgEXTTRIG = EXTTRIG
         EXTTRIG = False
+        ROOTEXT = False
+        catecut["beam"] = "None"
     if grpflag == "off":
         orgGRPTRIG = GRPTRIG
         GRPTRIG = False
+        ROOTGRP = False
+        catecut["sprmc"] = "None"
+        catecut["prime"] = "None"
+    if extflag == "off" and grpflag == "off":
+        catecut["jbrsc"] = "None"
 #    if grouptrigmax: 
 #        GRTINFO = "./csv/grptrig_singlethread_all.txt"
     # ---------------------------------------------------------
     mutes = MUTES.MUTES(pulse_runnums, noise_runnum, maxchans, calibration_runnum, calibration_noisenum,
                         badchan, DATADIR, DELETE, GRTINFO, COLUMN_INFO,
-                        hdf5optname=hdf5optname, catecut=catecut, target=target,
-                        cut_pre=cut_pre, cut_post=cut_post)
+                        catecut=catecut, target=target,
+                        cut_pre=cut_pre, cut_post=cut_post, use_new_filters=use_new_filters)
     mutes.ana(forceNew=FORCE,summaryNew=SUMMARY,calibNew=CALIB,exttrigNew=EXTTRIG,grptrigNew=GRPTRIG)
     # ---------------------------------------------------------
     if DUMPROOT:
         print "\n [dump ROOT except for pulses]"
-        mutes.dump_ROOT_2019(EXTTRIG=ROOTEXT, GRTRIG=ROOTGRP)
+        mutes.dump_ROOT(EXTTRIG=ROOTEXT, GRTRIG=ROOTGRP)
     # ---------------------------------------------------------
     # when external trigger or group trigger is off, those flags are back to the input values 
-    if extflag == "off":    	EXTTRIG = orgEXTTRIG
-    if grpflag == "off":    	GRPTRIG = orgGRPTRIG
+    if extflag == "off":
+        EXTTRIG = orgEXTTRIG
+        catecut["beam"] = beam
+    if grpflag == "off":
+        GRPTRIG = orgGRPTRIG
+        catecut["sprmc"] = sprmc
+        catecut["prime"] = prime
+    if extflag == "off" and grpflag == "off":
+        catecut["jbrsc"] = jbrsc
+    # adjust
+    if EXTTRIG and DUMPROOT: ROOTEXT=True
+    if GRPTRIG and DUMPROOT: ROOTGRP=True
     # ---------------------------------------------------------
 
 

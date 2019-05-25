@@ -9,14 +9,15 @@ History:
 2019-01-31 ; ver 1.3; H.Tatsuno modified drastically, removed all plots functions and simplified
 2019-04-26 ; ver 1.4; H.Tatsuno added multiple runs analysis
 2019-05-09 ; ver 1.5; H.Tatsuno minor change
+2019-05-22 ; ver 1.6; H.Tatsuno minor change
 
 """
 
 __author__ =  'a bad boy HT'
-__version__ = '1.5'
+__version__ = '1.6'
 
 import matplotlib
-matplotlib.use("Agg")
+#matplotlib.use("Agg")
 import mass
 import monkeypatch # patches mass to avoid crashes
 import numpy as np
@@ -51,13 +52,12 @@ if ANADIR == "" or DATADIR == "":
     
 BADCHS = [3,9,39,77,83,85,111,337,367,375,423]# initially disconnected
 BADCHS.extend([117,203,233])# bad channels
-BADCHS.extend([5,177])# strange channels
-BADCHS.extend([17])# ?? is this strange?
+BADCHS.extend([5,177,257,265,293])# strange channels
+#BADCHS.extend([17])# ?? is this strange?
 BADCHS.sort()
 
 maxchans = 240
-#maxchans = 50
-#print "maxchans is not full, this is a test mode, please do not use grp trigger"
+#maxchans = 10
 
 if os.path.isdir(DATADIR)==False: 
     print "%s is missing"%DATADIR
@@ -101,7 +101,6 @@ parser.add_option('--sprmc',  dest='sprmc',    action="store",type=str, help='se
 parser.add_option('--jbrsc',  dest='jbrsc',    action="store",type=str, help='set jbrsc catecut (default=None, on or off)',default="None")
 parser.add_option('--pre',    dest='cut_pre',  action="store",type=int, help='set cut for pre samples',default=0)
 parser.add_option('--post',   dest='cut_post', action="store",type=int, help='set cut for post samples',default=0)
-parser.add_option('--hdf5optname',  dest='hdf5optname', action="store", type=str, help='add optional name for hdf5 (default=None)', default=None)
 
 options,args = parser.parse_args()
 
@@ -120,14 +119,19 @@ sprmc          = options.sprmc
 jbrsc          = options.jbrsc
 cut_pre        = options.cut_pre
 cut_post       = options.cut_post
-hdf5optname    = options.hdf5optname
+
+#use_new_filters=False
+use_new_filters=True
 
 catecut = {}
-catecut["prime"] = "on"
-if not jbrsc=="None": catecut["jbrsc"] = jbrsc
-if not beam=="None":  catecut["beam"]  = beam
+prime = "on"; catecut["prime"] = prime;
 if not sprmc=="None": catecut["sprmc"] = sprmc
-if beam=="None" and sprmc=="None": catecut=None
+if not beam=="None":  catecut["beam"]  = beam
+if not jbrsc=="None": catecut["jbrsc"] = jbrsc
+
+# adjust
+if EXTTRIG and DUMPROOT: ROOTEXT=True
+if GRPTRIG and DUMPROOT: ROOTGRP=True
 
 print ""
 print "--- [OPTIONS] ----------------------"
@@ -141,7 +145,6 @@ print "    DELETE         = ", DELETE
 print "    catecut        = ", catecut
 print "    cut_pre        = ", cut_pre
 print "    cut_post       = ", cut_post
-print "    hdf5optname    = ", hdf5optname
 print ""
 print "  (ROOT)             "
 print "    DUMPROOT       = ", DUMPROOT
@@ -199,29 +202,47 @@ analist = [(run_p, int(run_n), ana_target, exttrig, grptrig, cal_run, cal_noise_
 for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum, badchan in analist:
     print "..... run, noise, target, exttrig, grptrig, cal_run, cal_noise = ", pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum
     print "BADCHAN = ", badchan
+    # ---------------------------------------------------------
     # when external trigger or group trigger is off, those flags are forced to be false. 
     if extflag == "off": 
     	orgEXTTRIG = EXTTRIG
         EXTTRIG = False
+        ROOTEXT = False
+        catecut["beam"] = "None"
     if grpflag == "off":
         orgGRPTRIG = GRPTRIG
         GRPTRIG = False
+        ROOTGRP = False
+        catecut["sprmc"] = "None"
+        catecut["prime"] = "None"
+    if extflag == "off" and grpflag == "off":
+        catecut["jbrsc"] = "None"
 #    if grouptrigmax: 
 #        GRTINFO = "./csv/grptrig_singlethread_all.txt"
     # ---------------------------------------------------------
     mutes = MUTES.MUTES(pulse_runnums, noise_runnum, maxchans, calibration_runnum, calibration_noisenum,
                         badchan, DATADIR, DELETE, GRTINFO, COLUMN_INFO,
-                        hdf5optname=hdf5optname, catecut=catecut, target=target,
-                        cut_pre=cut_pre, cut_post=cut_post)
+                        catecut=catecut, target=target,
+                        cut_pre=cut_pre, cut_post=cut_post, use_new_filters=use_new_filters)
     mutes.ana(forceNew=FORCE,summaryNew=SUMMARY,calibNew=CALIB,exttrigNew=EXTTRIG,grptrigNew=GRPTRIG)
     # ---------------------------------------------------------
-    #if DUMPROOT:
-    #    print "\n [dump ROOT except for pulses]"
-    #    mutes.dump_ROOT_2019(EXTTRIG=ROOTEXT, GRTRIG=ROOTGRP)
+    if DUMPROOT:
+        print "\n [dump ROOT except for pulses]"
+        mutes.dump_ROOT(EXTTRIG=ROOTEXT, GRTRIG=ROOTGRP)
     # ---------------------------------------------------------
     # when external trigger or group trigger is off, those flags are back to the input values 
-    if extflag == "off":    	EXTTRIG = orgEXTTRIG
-    if grpflag == "off":    	GRPTRIG = orgGRPTRIG
+    if extflag == "off":
+        EXTTRIG = orgEXTTRIG
+        catecut["beam"] = beam
+    if grpflag == "off":
+        GRPTRIG = orgGRPTRIG
+        catecut["sprmc"] = sprmc
+        catecut["prime"] = prime
+    if extflag == "off" and grpflag == "off":
+        catecut["jbrsc"] = jbrsc
+    # adjust
+    if EXTTRIG and DUMPROOT: ROOTEXT=True
+    if GRPTRIG and DUMPROOT: ROOTGRP=True
     # ---------------------------------------------------------
 
 
@@ -229,6 +250,7 @@ for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, c
 data = mutes.data
 chans=data.channel.keys()
 
+# ------------------------------------------
 ## data set of first good channel
 #ds1 = data.first_good_dataset
 ## data set of channel11 (if exists)
@@ -294,11 +316,14 @@ chans=data.channel.keys()
 #plt.figure()
 #plt.plot(timestamp[g],pretrig_mean[g])
 #
+# ------------------------------------------
+
+
 
 
 # ------------------------------------------------------------
 
-def localfit(ds,linename):
+def localfit(ds,linename,category=None):
     '''
      NOTE parameters of MultiLorentzianComplexFitter
         param_meaning = {
@@ -312,9 +337,13 @@ def localfit(ds,linename):
             "tail_length": 7
         }
     '''
+    if category is not None:
+        good = ds.cuts.good(**category)
+    else:
+        good = ds.good()
     elo,ehi = mass.STANDARD_FEATURES[linename]-50,mass.STANDARD_FEATURES[linename]+50
     edges = np.arange(elo,ehi,1)
-    counts, _ = np.histogram(ds.p_energy[ds.good()],edges)
+    counts, _ = np.histogram(ds.p_energy[good],edges)
     fitter = mass.getfitter(linename)
     fitter.fit(counts,edges,plot=False)
     params = fitter.last_fit_params[:]
@@ -343,57 +372,61 @@ def decay_time_rough(ds,idx):
     
 
 # ------------------------------------------------------------
+from matplotlib.backends.backend_pdf import PdfPages
+import csv
+import math
 
-# how to fit
+# fit linename
 if ana_target=="Mn":
     linename="MnKAlpha"
 elif ana_target=="Fe" or ana_target=="Co57":
     linename="FeKAlpha"
 
-from matplotlib.backends.backend_pdf import PdfPages
-import csv
-import math
+if exttrig=="off" and grptrig=="off":
+    catecut={}
+
 
 ncols = 8
 nrows = 30
 divx1, divy1 = 6, 5
-divx2, divy2 = 2, 2
 
 outdir="./output/"
 fresolname=outdir+'run%d_resol.csv'%(run_p[0])
 
 # energy resolution
-#f = open(fresolname, 'w')
-#writer = csv.writer(f, lineterminator='\n')
-#res_list=[]
-#pdfname=outdir+"run%d_fit_%s.pdf"%(run_p[0],linename)
-#with PdfPages(pdfname) as pdf:
-#    print "printing...", pdfname
-#    for icol in xrange(1,ncols+1,1):
-#        fig = plt.figure(figsize=(20,15))
-#        for ich in xrange(1,nrows+1,1):
-#            ch = (icol-1)*nrows*2+ich*2-1
-#            if ch in chans:
-#                ds = data.channel[ch]
-#                fitter = localfit(ds,linename)
-#                res = fitter.last_fit_params_dict["resolution"][0]
-#                res_err = fitter.last_fit_params_dict["resolution"][1]
-#                ch = ds.channum
-#                print "%03d,%.2f,%.2f"%(ch,res,res_err)
-#                if math.isnan(res):
-#                    res=1e3
-#                    res_err=1e3
-#                res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err])
-#                ax = plt.subplot(divx1,divy1,ich)
-#                fitter.plot(axis=ax,ph_units='eV')
-#                ax.set_title("chan %d"%ch)
-#        fig.tight_layout()
-#        pdf.savefig()
-#        plt.close()
-#writer.writerows(res_list)
-#f.close()
-#print "%s is created."%pdfname
-#print "%s is created."%fresolname
+if not os.path.isfile(fresolname):
+    f = open(fresolname, 'w')
+    writer = csv.writer(f, lineterminator='\n')
+    res_list=[]
+    pdfname=outdir+"run%d_fit_%s.pdf"%(run_p[0],linename)
+    with PdfPages(pdfname) as pdf:
+        print "printing...", pdfname
+        for icol in xrange(1,ncols+1,1):
+            fig = plt.figure(figsize=(20,15))
+            for ich in xrange(1,nrows+1,1):
+                ch = (icol-1)*nrows*2+ich*2-1
+                if ch in chans:
+                    if ch==61: continue
+                    ds = data.channel[ch]
+                    fitter = localfit(ds,linename,category=catecut)
+                    res = fitter.last_fit_params_dict["resolution"][0]
+                    res_err = fitter.last_fit_params_dict["resolution"][1]
+                    ch = ds.channum
+                    print "%03d,%.2f,%.2f"%(ch,res,res_err)
+                    if math.isnan(res):
+                        res=1e3
+                        res_err=1e3
+                    res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err])
+                    ax = plt.subplot(divx1,divy1,ich)
+                    fitter.plot(axis=ax,ph_units='eV')
+                    ax.set_title("chan %d"%ch)
+            fig.tight_layout()
+            pdf.savefig()
+            plt.close()
+    writer.writerows(res_list)
+    f.close()
+    print "%s is created."%pdfname
+    print "%s is created."%fresolname
 
 chs=[]
 resols=[]
@@ -412,8 +445,8 @@ with PdfPages(pdfname) as pdf:
             ch = (icol-1)*nrows*2+ich*2-1
             if ch in chans:
                 ds = data.channel[ch]
+                g = ds.cuts.good(**catecut)# good event cuts
                 ax = plt.subplot(divx1,divy1,ich)
-                g=ds.good()
                 ax.scatter(ds.p_timestamp[g],ds.p_pretrig_mean[g])
                 ax.set_xlabel("timestamp")
                 ax.set_ylabel("pretrig mean")
@@ -426,7 +459,6 @@ with PdfPages(pdfname) as pdf:
         plt.close()
 
 
-
 edges = np.arange(5000,15010,10)
 pdfname=outdir+"run%d_filt_value.pdf"%(run_p[0])
 with PdfPages(pdfname) as pdf:
@@ -437,8 +469,9 @@ with PdfPages(pdfname) as pdf:
             ch = (icol-1)*nrows*2+ich*2-1
             if ch in chans:
                 ds = data.channel[ch]
+                g = ds.cuts.good(**catecut)# good event cuts
                 ax = plt.subplot(divx1,divy1,ich)
-                counts, _ = np.histogram(ds.p_filt_value[ds.good()],edges)
+                counts, _ = np.histogram(ds.p_filt_value[g],edges)
                 ax.step(edges[:-1],counts)
                 ch = ds.channum
                 print "%03d"%(ch)
@@ -485,9 +518,9 @@ with PdfPages(pdfname) as pdf:
             ch = (icol-1)*nrows*2+ich*2-1
             if ch in chans:
                 ds = data.channel[ch]
+                g = ds.cuts.good(**catecut)# good event cuts
                 ax = plt.subplot(divx1,divy1,ich)
-                good_pulse_idx = np.where(ds.good())[0]
-
+                good_pulse_idx = np.where(g)[0]
                 for i in range(2):
                     y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
                     dt = decay_time_rough(ds,good_pulse_idx[i])

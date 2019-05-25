@@ -1,12 +1,12 @@
 """ mutes_ext.py is a function package for MUTES E62 group trigger analysis 
 
 History: 
-2018-08-16 ; ver 1.0; branched from mutes_util.py
+2018-08-16 ; ver 1.0; branched from khe_util.py
 2019-02-01 ; ver 1.1 a little bit modified, Hideyuki Tatsuno
-
+2019-05-21 ; ver 1.2 separated filtered values ana HT
 """
 
-__version__ = '1.1'
+__version__ = '1.2'
 
 import mass
 import mutes_util as util
@@ -16,28 +16,26 @@ import sys
 
 
 def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
+    sec_params=["sec_pr_sum",     
+                "sec_pr_max",     
+                "sec_pr_mean",    
+                "sec_pr_maxmean", 
+                "sec_pr_meanmean",
+                "sec_pr_maxmin",  
+                "sec_pr_meanmin"]
     # GRTINFO is group trigger channel map
     for ds in data:
-        if forceNew==False:
-            print "ch%d group trigger ana skipped."%(ds.channum)
-            try:
-                print "try to load secondary peak region data from hdf5 file."
-                ds.sec_pr_sum      = ds.hdf5_group["sec_pr_sum"]
-                ds.sec_pr_max      = ds.hdf5_group["sec_pr_max"]
-                ds.sec_pr_mean     = ds.hdf5_group["sec_pr_mean"]
-                ds.sec_pr_maxmean  = ds.hdf5_group["sec_pr_maxmean"]
-                ds.sec_pr_meanmean = ds.hdf5_group["sec_pr_meanmean"]
-                ds.sec_pr_maxmin   = ds.hdf5_group["sec_pr_maxmin"]
-                ds.sec_pr_meanmin  = ds.hdf5_group["sec_pr_meanmin"]
-                ds.sec_enemean     = ds.hdf5_group["sec_enemean"]
-                ds.sec_enemax      = ds.hdf5_group["sec_enemax"]
-                ds.sec_fdmean      = ds.hdf5_group["sec_fdmean"]
-                ds.sec_fdmax       = ds.hdf5_group["sec_fdmax"]
-            except:
-                print "no success, ch%d group trigger ana is not done yet."%(ds.channum)
-                return False
+        if not forceNew:
+            for par in sec_params:
+                if par in ds.hdf5_group:
+                    print "loading secondary peak region data from hdf5 file."
+                    setattr(ds,par,ds.hdf5_group[par][()])
+                else:
+                    print "group trigger data was not set."
+                    return False
             continue
-        elif forceNew==True: print "ch%d group trig analysis ...."%(ds.channum)
+        else:
+            print "ch%d secondary peak region analysis ..."%(ds.channum)
             
         npl = ds.nPulses
         p_rows = np.array(ds.p_rowcount[:])
@@ -51,21 +49,14 @@ def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
         prima[prim_ind]=True
         p_prima_rows=p_rows[prim_ind]
         # initialize
-        ds.sec_pr_sum      = np.zeros(npl,dtype=np.float32)
-        ds.sec_pr_max      = np.zeros(npl,dtype=np.float32)
-        ds.sec_pr_mean     = np.zeros(npl,dtype=np.float32)
-        ds.sec_pr_maxmean  = np.zeros(npl,dtype=np.float32)
-        ds.sec_pr_meanmean = np.zeros(npl,dtype=np.float32)
-        ds.sec_pr_maxmin   = np.zeros(npl,dtype=np.float32)
-        ds.sec_pr_meanmin  = np.zeros(npl,dtype=np.float32)
-        # ds.sec_pr_meanmax  = np.zeros(npl,dtype=np.float32)      
-        ds.sec_enemean     = np.zeros(npl,dtype=np.float32) # energy : mean
-        ds.sec_enemax      = np.zeros(npl,dtype=np.float32) # energy : max
-        ds.sec_fdmean      = np.zeros(npl,dtype=np.float32) # filtered value : mean
-        ds.sec_fdmax       = np.zeros(npl,dtype=np.float32) # filtered value : max
+        sec_pr_sum      = np.zeros(npl,dtype=np.float32)
+        sec_pr_max      = np.zeros(npl,dtype=np.float32)
+        sec_pr_mean     = np.zeros(npl,dtype=np.float32)# meanmax
+        sec_pr_maxmean  = np.zeros(npl,dtype=np.float32)
+        sec_pr_meanmean = np.zeros(npl,dtype=np.float32)
+        sec_pr_maxmin   = np.zeros(npl,dtype=np.float32)
+        sec_pr_meanmin  = np.zeros(npl,dtype=np.float32)
 
-        sene=[] # secondary energy
-        sfil=[] # secondary filetered value        
         sprs=[]
         sprm=[]
         sprx=[]
@@ -75,74 +66,110 @@ def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
             sec_grti = np.array(ds_sec.p_grouptrig)
             sec_index = np.where(sec_grti==ds.channum)[0]# secondary event for this primary ds
             # shold be len(sec_index) == len(prim_ind)
-            # 20190201 Kokode kokeru?
             if not len(sec_index) == len(prim_ind):
                 print "length of secondary index is strange.... ",len(prim_ind),len(sec_index)
                 raise Exception
             sprs.append(np.array(ds_sec.p_peak_region_sum)[sec_index])
             sprx.append(np.array(ds_sec.p_peak_region_max)[sec_index])
             sprm.append(np.array(ds_sec.p_peak_region_mean)[sec_index])            
+        
+        for i, p_ind in enumerate(prim_ind):
+            sec_pr_sum[p_ind]       = max([sprs[j][i] for j in xrange(len(sprs))])
+            sec_pr_max[p_ind]       = max([sprx[j][i] for j in xrange(len(sprx))])
+            sec_pr_mean[p_ind]      = max([sprm[j][i] for j in xrange(len(sprm))]) ## same as sec_pr_meanmax            
+            sec_pr_maxmean[p_ind]   = np.average([sprx[j][i] for j in xrange(len(sprx))])
+            sec_pr_meanmean[p_ind]  = np.average([sprm[j][i] for j in xrange(len(sprm))])
+            sec_pr_maxmin[p_ind]    = min([sprx[j][i] for j in xrange(len(sprx))])
+            sec_pr_meanmin[p_ind]   = min([sprm[j][i] for j in xrange(len(sprm))])
+
+        h5_sec_pr_sum         = ds.hdf5_group.require_dataset("sec_pr_sum",(npl,),dtype=np.float32)
+        h5_sec_pr_sum[:]      = sec_pr_sum
+        h5_sec_pr_mean        = ds.hdf5_group.require_dataset("sec_pr_mean",(npl,),dtype=np.float32)
+        h5_sec_pr_mean[:]     = sec_pr_mean
+        h5_sec_pr_max         = ds.hdf5_group.require_dataset("sec_pr_max",(npl,),dtype=np.float32)
+        h5_sec_pr_max[:]      = sec_pr_max
+        h5_sec_pr_maxmean     = ds.hdf5_group.require_dataset("sec_pr_maxmean",(npl,),dtype=np.float32)
+        h5_sec_pr_maxmean[:]  = sec_pr_maxmean
+        h5_sec_pr_meanmean    = ds.hdf5_group.require_dataset("sec_pr_meanmean",(npl,),dtype=np.float32)
+        h5_sec_pr_meanmean[:] = sec_pr_meanmean
+        h5_sec_pr_maxmin      = ds.hdf5_group.require_dataset("sec_pr_maxmin",(npl,),dtype=np.float32)
+        h5_sec_pr_maxmin[:]   = sec_pr_maxmin
+        h5_sec_pr_meanmin     = ds.hdf5_group.require_dataset("sec_pr_meanmin",(npl,),dtype=np.float32)
+        h5_sec_pr_meanmin[:]  = sec_pr_meanmin
+
+        for par in sec_params:
+            setattr(ds,par,ds.hdf5_group[par][()])
+    return True
+            
+
+def calc_group_trigger_params_filtered(data,GRTINFO,forceNew=False,maxgrchs=4):
+    # this should be run after filtered
+    sec_params=["sec_enemean",    
+                "sec_enemax",     
+                "sec_fdmean",     
+                "sec_fdmax"]
+    # GRTINFO is group trigger channel map
+    for ds in data:
+        if not forceNew:
+            for par in sec_params:
+                if par in ds.hdf5_group:
+                    print "loading secondary peak region data from hdf5 file."
+                    setattr(ds,par,ds.hdf5_group[par][()])
+                else:
+                    print "group trigger data was not set."
+                    return False
+            continue
+        else:
+            print "ch%d secondary peak region analysis filtered ..."%(ds.channum)
+            
+        npl = ds.nPulses
+        p_rows = np.array(ds.p_rowcount[:])
+        grti = np.array(ds.p_grouptrig)# group trig ch info
+        grtchs = np.zeros(maxgrchs,dtype=np.intc)# group hit channels
+        gdict = util.get_grtdict(GRTINFO)
+        grtchs = gdict.get(ds.channum)
+        # primary flag
+        prima = np.zeros(shape=grti.shape,dtype=bool)
+        prim_ind = np.where(grti==-1)[0]# -1 is primary event, other number is a secondary one
+        prima[prim_ind]=True
+        p_prima_rows=p_rows[prim_ind]
+        # initialize
+        sec_enemean     = np.zeros(npl,dtype=np.float32) # energy : mean
+        sec_enemax      = np.zeros(npl,dtype=np.float32) # energy : max
+        sec_fdmean      = np.zeros(npl,dtype=np.float32) # filtered value : mean
+        sec_fdmax       = np.zeros(npl,dtype=np.float32) # filtered value : max
+
+        sene=[] # secondary energy
+        sfil=[] # secondary filetered value        
+        for j,ch in enumerate(grtchs):
+            if ch==0 or data.channel.has_key(ch)==False: continue
+            ds_sec = data.channel[ch]
+            sec_grti = np.array(ds_sec.p_grouptrig)
+            sec_index = np.where(sec_grti==ds.channum)[0]# secondary event for this primary ds
+            # shold be len(sec_index) == len(prim_ind)
+            if not len(sec_index) == len(prim_ind):
+                print "length of secondary index is strange.... ",len(prim_ind),len(sec_index)
+                raise Exception
             sene.append(np.array(ds_sec.p_energy)[sec_index])
             sfil.append(np.array(ds_sec.p_filt_value)[sec_index])
         
         for i, p_ind in enumerate(prim_ind):
-            ds.sec_pr_sum[p_ind]       = max([sprs[j][i] for j in xrange(len(sprs))])
-            ds.sec_pr_max[p_ind]       = max([sprx[j][i] for j in xrange(len(sprx))])
-            ds.sec_pr_mean[p_ind]      = max([sprm[j][i] for j in xrange(len(sprm))]) ## same as sec_pr_meanmax            
-            ds.sec_pr_maxmean[p_ind]   = np.average([sprx[j][i] for j in xrange(len(sprx))])
-            ds.sec_pr_meanmean[p_ind]  = np.average([sprm[j][i] for j in xrange(len(sprm))])
-            ds.sec_pr_maxmin[p_ind]    = min([sprx[j][i] for j in xrange(len(sprx))])
-            ds.sec_pr_meanmin[p_ind]   = min([sprm[j][i] for j in xrange(len(sprm))])
-            # ds.sec_pr_meanmax[p_ind]   = max([sprm[j][i] for j in xrange(len(sprm))]) ## RH
-            ds.sec_enemean[p_ind]      = np.average([sene[j][i] for j in xrange(len(sprx))])
-            ds.sec_enemax[p_ind]       = np.amax([sene[j][i] for j in xrange(len(sprx))])
-            ds.sec_fdmean[p_ind]       = np.average([sfil[j][i] for j in xrange(len(sprx))])
-            ds.sec_fdmax[p_ind]        = np.amax([sfil[j][i] for j in xrange(len(sprx))])
+            sec_enemean[p_ind]      = np.average([sene[j][i] for j in xrange(len(sene))])
+            sec_enemax[p_ind]       = np.amax([sene[j][i] for j in xrange(len(sene))])
+            sec_fdmean[p_ind]       = np.average([sfil[j][i] for j in xrange(len(sfil))])
+            sec_fdmax[p_ind]        = np.amax([sfil[j][i] for j in xrange(len(sfil))])
             
-        h5_sec_pr_sum     = ds.hdf5_group.require_dataset("sec_pr_sum",(npl,),dtype=np.float32)
-        h5_sec_pr_sum[:]  = ds.sec_pr_sum
-        h5_sec_pr_mean    = ds.hdf5_group.require_dataset("sec_pr_mean",(npl,),dtype=np.float32)
-        h5_sec_pr_mean[:] = ds.sec_pr_mean
-        h5_sec_pr_max     = ds.hdf5_group.require_dataset("sec_pr_max",(npl,),dtype=np.float32)
-        h5_sec_pr_max[:]  = ds.sec_pr_max
-        ### YI
-        h5_sec_pr_maxmean = ds.hdf5_group.require_dataset("sec_pr_maxmean",(npl,),dtype=np.float32)
-        h5_sec_pr_maxmean[:] = ds.sec_pr_maxmean
-        h5_sec_pr_meanmean = ds.hdf5_group.require_dataset("sec_pr_meanmean",(npl,),dtype=np.float32)
-        h5_sec_pr_meanmean[:] = ds.sec_pr_meanmean
-        h5_sec_pr_maxmin = ds.hdf5_group.require_dataset("sec_pr_maxmin",(npl,),dtype=np.float32)
-        h5_sec_pr_maxmin[:] = ds.sec_pr_maxmin
-        h5_sec_pr_meanmin = ds.hdf5_group.require_dataset("sec_pr_meanmin",(npl,),dtype=np.float32)
-        h5_sec_pr_meanmin[:] = ds.sec_pr_meanmin
-        ## RH
-        # h5_sec_pr_meanmax = ds.hdf5_group.require_dataset("sec_pr_meanmax",(npl,),dtype=np.float32)
-        # h5_sec_pr_meanmax[:] = ds.sec_pr_meanmax
-        ## _RH
-        ### _YI
-        ### SY
         h5_sec_enemean = ds.hdf5_group.require_dataset("sec_enemean",(npl,),dtype=np.float32)
-        h5_sec_enemean[:] = ds.sec_enemean
+        h5_sec_enemean[:] = sec_enemean
         h5_sec_enemax = ds.hdf5_group.require_dataset("sec_enemax",(npl,),dtype=np.float32)
-        h5_sec_enemax[:] = ds.sec_enemax
+        h5_sec_enemax[:] = sec_enemax
         h5_sec_fdmean = ds.hdf5_group.require_dataset("sec_fdmean",(npl,),dtype=np.float32)
-        h5_sec_fdmean[:] = ds.sec_fdmean
+        h5_sec_fdmean[:] = sec_fdmean
         h5_sec_fdmax = ds.hdf5_group.require_dataset("sec_fdmax",(npl,),dtype=np.float32)
-        h5_sec_fdmax[:] = ds.sec_fdmax
-        ### _SY
-        
-        ds.sec_pr_sum       = ds.hdf5_group["sec_pr_sum"]
-        ds.sec_pr_max       = ds.hdf5_group["sec_pr_max"]
-        ds.sec_pr_mean      = ds.hdf5_group["sec_pr_mean"]
-        ds.sec_pr_maxmean   = ds.hdf5_group["sec_pr_maxmean"]
-        ds.sec_pr_meanmean  = ds.hdf5_group["sec_pr_meanmean"]
-        ds.sec_pr_maxmin    = ds.hdf5_group["sec_pr_maxmin"]
-        ds.sec_pr_meanmin   = ds.hdf5_group["sec_pr_meanmin"]
-        # ds.sec_pr_meanmax  = ds.hdf5_group["sec_pr_meanmax"]
-        ds.sec_enemean      = ds.hdf5_group["sec_enemean"]
-        ds.sec_enemax       = ds.hdf5_group["sec_enemax"]
-        ds.sec_fdmean       = ds.hdf5_group["sec_fdmean"]
-        ds.sec_fdmax        = ds.hdf5_group["sec_fdmax"]
-        
+        h5_sec_fdmax[:] = sec_fdmax
+
+        for par in sec_params:
+            setattr(ds,par,ds.hdf5_group[par][()])
     return True
 
 def get_grouptrig_pulse_info(data, cutarray, cut_category,GRTINFO,getMax=100,chanlist=[129]):
@@ -320,5 +347,3 @@ def get_grouptrig_pulse_info(data, cutarray, cut_category,GRTINFO,getMax=100,cha
             peak_value_all.append(peak_value_onechan)
 
     return pulse_records_array_all, peak_region_max_all, peak_region_mean_all, peak_region_sum_all, energy_all, pretrig_mean_all, pretrig_rms_all, peak_value_all
-
-

@@ -32,6 +32,7 @@ NUM_ROWS = 30
 # (nSamples - npreSamples) * number of rows
 GLOBAL_PT_OFFSET = (1024-256)*NUM_ROWS
 
+hpht_phc="hpht_phc"# hname  
 
 def get_usechans(pulse_runnum, noise_runnum, maxchans, badchans, DATADIR):
     datadir = os.path.expanduser(DATADIR)
