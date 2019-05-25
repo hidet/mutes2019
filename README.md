@@ -9,6 +9,13 @@ export MUTESANADIR="$MUTESHOME/mutes2019"
 export MUTESDATADIR="$MUTESHOME/data/TMU_2019G"
 ```
 
+# run information and run summary
+`RUNINFO` should be updated and set in the `run_mutes_single.py` or `ipy_test.py`
+```
+RUNINFO="./csv/data_TMU_2019G.csv"
+RUNINFO="./csv/data_TMU_2019H.csv"
+```
+
 # options
 Be careful, the default value is `False` or `None`.
 
