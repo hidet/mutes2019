@@ -1,4 +1,4 @@
-Run_pulse,run_noise,ana_target,exttrig(on/off),grouptrig(on/off),cryotag(A,B,...,Z),start_date,start_time,end_time,calrun
+Run_pulse,run_noise,ana_target,exttrig(on/off),grouptrig(on/off),cryotag(AB...Z),start_date,start_time,end_time,calrun
 0,0,noise,off,off,G,,23:11,,None
 1,0,Mn,off,off,G,,23:39,23:53,None
 2,0,Mn,off,off,G,,0:02,0:53,None
