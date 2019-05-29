@@ -63,7 +63,8 @@ if os.path.isdir(DATADIR)==False:
     print "%s is missing"%DATADIR
     sys.exit()
 
-RUNINFO="./csv/data_TMU_2019G.csv"
+RUNTAG=DATADIR.split("TMU_")[-1]
+RUNINFO="./csv/data_TMU_%s.csv"%(RUNTAG)
 if os.path.exists(RUNINFO)==False: 
     print "%s is missing"%RUNINFO
     sys.exit(0)
@@ -177,8 +178,9 @@ if isinstance(run_p,list)==False:
     run_p = (run_p,)
     run_p = tuple(run_p)
 
-ind = run_list.index(run_p[0])
+#ind = run_list.index(run_p[0])
 run_p = [int(r) for r in run_p]
+ind = run_list.index(run_p[0])
 irn = int(noise_list[ind])
 run_n="%04d"%irn
 ana_target = ana_list[ind]
@@ -256,8 +258,8 @@ chans=data.channel.keys()
 ## data set of channel11 (if exists)
 #ds11 = data.channel[11]
 #
-#ds = data.channel[99]
-## good event array
+#ds = data.channel[23]
+# good event array
 #g=ds.good()
 #
 ## filtered values
@@ -301,16 +303,27 @@ chans=data.channel.keys()
 #plt.close('all')
 #plt.ion()
 #
-#x=np.arange(nsamples)
-#x=x-npresamples
+#x=np.arange(1024)
+#x=x-256
 #good_pulse_idx = np.where(g)[0]
 #bad_pulse_idx = np.where(~g)[0]
 #plt.figure()
-#for i in range(5):
-#    plt.plot(x,ds.read_trace(good_pulse_idx[i]))
+#for i in xrange(10):
+#    y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
+#    plt.plot(x*ds.timebase*1e3,y)
+#plt.title("chan %d"%ds.channum)
+#plt.xlabel("Time (ms)")
+#plt.ylabel("feed back (arb)")
 #
 #plt.figure()
-#for i in range(5):
+#for i in xrange(30,40,1):
+#    plt.plot(x*ds.timebase*1e3,ds.read_trace(good_pulse_idx[i]))
+#plt.title("chan %d"%ds.channum)
+#plt.xlabel("Time (ms)")
+#plt.ylabel("feed back (arb)")
+#
+#plt.figure()
+#for i in range(10):
 #    plt.plot(x,ds.read_trace(bad_pulse_idx[i]))
 #
 #plt.figure()
@@ -318,7 +331,7 @@ chans=data.channel.keys()
 #
 # ------------------------------------------
 
-
+#sys.exit()
 
 
 # ------------------------------------------------------------

@@ -63,7 +63,8 @@ if os.path.isdir(DATADIR)==False:
     print "%s is missing"%DATADIR
     sys.exit()
 
-RUNINFO="./csv/data_TMU_2019G.csv"
+RUNTAG=DATADIR.split("TMU_")[-1]
+RUNINFO="./csv/data_TMU_%s.csv"%(RUNTAG)
 if os.path.exists(RUNINFO)==False: 
     print "%s is missing"%RUNINFO
     sys.exit(0)

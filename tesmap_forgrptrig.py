@@ -3,6 +3,7 @@ from math import pow, sqrt
 #import matplotlib
 #import matplotlib.pyplot as plt
 import pylab as plt
+import pandas as pd
 import matplotlib.cm as cm
 import matplotlib as mpl
 
@@ -450,12 +451,12 @@ def getRectTESPos(ch,facecolor='blue',edgecolor='red',alpha=0.8):
     return rect
 
 
-def writeTextTESPos(ax,ch,idx,fontsize=8):
+def writeTextTESPos(ax,ch,idx,fontsize=8, yoffset=0.0, color='k'):
     l = 350.
     x,y = getTESPos(ch)
     #    ax.annotate("%d"%idx, xy=(x-l/2.,y-l/2.), xycoords='data',\
     #                xytext=(x-l/2.,y-l/2.), textcoords='data',size=fontsize)
-    ax.text(x-l/2.,y-l/2.,"%d"%idx,size=fontsize)
+    ax.text(x-l/2.,y-l/2.+yoffset,"%d"%idx,size=fontsize,color=color)
 
 
 def writeFloatTESPos(ax,ch,idx,fontsize=8, yoffset=0.0, color='k'):
@@ -491,6 +492,36 @@ def getPlotDensityPlane(i=1,j=1,k=1,chans=[1],resols=[1.]):
         ax.add_patch(rect)
 
     return ax
+
+
+def plotAliveChFromCSV(fname="hoge.csv",columns=['chans']):
+    df = pd.read_csv(fname,header=None)
+    df.columns=columns
+    chans=df.iloc[:,0].values
+    dummy=np.ones(len(chans),dtype=np.float32)
+    plt.figure(figsize=(8, 8))
+    ax=getPlotDensityPlane(1,1,1,chans,dummy)
+    ax.set_title(fname)
+    for ch in chans:
+        writeTextTESPos(ax,ch,ch,fontsize=7, yoffset=0.0, color='k')
+    return ax
+
+
+def plotDensityPlaneFromCSV(fname="hoge.csv",columns=['chans','resols','resols_err']):
+    df = pd.read_csv(fname,header=None)
+    df.columns=columns
+    df.loc[df.resols>50,'resols'] = 50.
+    chans=df.iloc[:,0].values
+    resols=df.iloc[:,1].values
+    plt.figure(figsize=(8, 8))
+    ax=getPlotDensityPlane(1,1,1,chans,resols)
+    ax.set_title(fname)
+    for ch,resol in zip(chans,resols):
+        #writeTextTESPos(ax,ch,ch,fontsize=7, yoffset=0.0, color='k')
+        writeFloatTESPos(ax,ch,resol,fontsize=7, yoffset=150.0, color='k')
+    return ax
+
+
 
 
 '''
