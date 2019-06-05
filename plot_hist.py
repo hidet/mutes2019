@@ -21,7 +21,7 @@ def set_hist(h,xtitle="",ytitle=""):
     h.GetYaxis().SetTitle(ytitle)
 
 
-outdir="./output/"
+outdir="./output/TMU_2019G/"
 ROOTDIR="%s/dumproot"%(os.environ['MUTESDATADIR'])
 cut="_spilloff_sprmcon_jbrscon_prime"
 fnames = [ROOTDIR+"/run0036/run0036_noi0035_mass_2019%s.root"%cut,
@@ -31,8 +31,11 @@ tags=["Ne09atm","Ne04atm","Ne01atm"]
 
 # good channel selection
 fwhmth=10.
-howmany_n=3
+#howmany_n=3
+#howmany_n=2
 #howmany_n=1
+howmany_n=0
+
 fgoodch=outdir+"resols_MnKa_th%d_n%d.csv"%(int(fwhmth),howmany_n)
 df = pd.read_csv(fgoodch,header=None)
 goodchs = df.iloc[:,0].tolist()
@@ -47,9 +50,9 @@ for f,tag in zip(fs,tags):
     t = f.Get("chanall")
 
     fout.cd()
-    hene_off   = ROOT.TH1F("hene_off_%s"%tag,"hene_off_%s"%tag,15000,0,15000)
-    hene_bon   = ROOT.TH1F("hene_bon_%s"%tag,"hene_bon_%s"%tag,15000,0,15000)
-    hene_ton   = ROOT.TH1F("hene_ton_%s"%tag,"hene_ton_%s"%tag,15000,0,15000)
+    hene_off   = ROOT.TH1F("hene_off_%s"%tag,"hene_off_%s"%tag,25000,0,25000)
+    hene_bon   = ROOT.TH1F("hene_bon_%s"%tag,"hene_bon_%s"%tag,25000,0,25000)
+    hene_ton   = ROOT.TH1F("hene_ton_%s"%tag,"hene_ton_%s"%tag,25000,0,25000)
     htime_all  = ROOT.TH1F("htime_all_%s"%tag,"htime_all_%s"%tag,600,0,150)
     htime_mune = ROOT.TH1F("htime_mune_%s"%tag,"htime_mune_%s"%tag,600,0,150)
     h2         = ROOT.TH2F("h2_%s"%tag,"h2_%s"%tag,600,0,150,450,5800,6700)
@@ -62,15 +65,15 @@ for f,tag in zip(fs,tags):
     h2Fill=h2.Fill
 
     set_hist(hene_off,xtitle="Energy [eV]",
-             ytitle="Counts / %.1f eV"%(hene_off.GetBinWidth(1)))
+             ytitle="Counts / %.2f eV"%(hene_off.GetBinWidth(1)))
     set_hist(hene_bon,xtitle="Energy [eV]",
-             ytitle="Counts / %.1f eV"%(hene_bon.GetBinWidth(1)))
+             ytitle="Counts / %.2f eV"%(hene_bon.GetBinWidth(1)))
     set_hist(hene_ton,xtitle="Energy [eV]",
-             ytitle="Counts / %.1f eV"%(hene_ton.GetBinWidth(1)))
+             ytitle="Counts / %.2f eV"%(hene_ton.GetBinWidth(1)))
     set_hist(htime_all,xtitle="Time (1ch=240ns)",
-             ytitle="Counts / %.1f ch"%(htime_all.GetBinWidth(1)))
+             ytitle="Counts / %.2f ch"%(htime_all.GetBinWidth(1)))
     set_hist(htime_mune,xtitle="Time (1ch=240ns)",
-             ytitle="Counts / %.1f ch"%(htime_mune.GetBinWidth(1)))
+             ytitle="Counts / %.2f ch"%(htime_mune.GetBinWidth(1)))
     set_hist(h2,xtitle="Time (1ch=240ns)",ytitle="Energy [eV]")
 
 
@@ -86,13 +89,17 @@ for f,tag in zip(fs,tags):
             hene_offFill(e.energy)
         elif e.beam==1:# beam on
             hene_bonFill(e.energy)
-            htime_allFill(e.row_next_extrig_nrp)
-            if e.row_next_extrig_nrp>=0 and e.row_next_extrig_nrp<150:
-                h2Fill(e.row_next_extrig_nrp,e.energy)
+            htime_allFill(e.dt)
+            #htime_allFill(e.row_next_extrig_nrp)
+            #if e.row_next_extrig_nrp>=0 and e.row_next_extrig_nrp<150:
+            #h2Fill(e.row_next_extrig_nrp,e.energy)
+            if e.dt>=0 and e.dt<150:
+                h2Fill(e.dt,e.energy)
             if e.energy>=6260 and e.energy<6340:
-                htime_muneFill(e.row_next_extrig_nrp)
+                #htime_muneFill(e.row_next_extrig_nrp)
+                htime_muneFill(e.dt)
             #if e.row_next_extrig_nrp>=65 and e.row_next_extrig_nrp<75:
-            if e.row_next_extrig_nrp>=64 and e.row_next_extrig_nrp<74:
+            if e.dt>=64 and e.dt<74:
                 hene_tonFill(e.energy)
             
     hene_off.Write()  
