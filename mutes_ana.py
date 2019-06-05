@@ -8,12 +8,14 @@ History:
 2019-01-31 ; ver 1.4; drastically simplified, especially removed plot functions by a bad boy HT
 2019-05-09 ; ver 1.5; HT minor change
 2019-05-23 ; ver 1.6; HT bug fixed
+2019-06-04 ; ver 1.7; HT added row decimals
 
 """
 
-__version__ = '1.6'
+__version__ = '1.7'
 
 import mass
+import math
 import numpy as np
 import pylab as plt
 
@@ -145,9 +147,11 @@ class MUTES():
     def adjust_rowcount(self):
         for ds in self.data:
             # be careful, to adjust phase, you do filter the data first
-            p_row_adjust = -1.*(np.array(ds.p_shift1)+np.array(ds.p_filt_phase))
-            setattr(ds,"p_rowp",np.asarray(ds.p_rowcount+(p_row_adjust*util.NUM_ROWS), dtype=np.int64) - util.GLOBAL_PT_OFFSET)
-            setattr(ds,"p_rown",np.asarray(ds.p_rowcount-(p_row_adjust*util.NUM_ROWS), dtype=np.int64) - util.GLOBAL_PT_OFFSET)
+            p_row_adj = -1.*(np.asarray(ds.p_shift1,dtype=np.float64)+np.asarray(ds.p_filt_phase,dtype=np.float64))*util.NUM_ROWS
+            tmp=np.array([math.modf(p) for p in p_row_adj])
+            setattr(ds,"p_rowp",np.asarray(ds.p_rowcount+tmp[:,1], dtype=np.int64)-util.GLOBAL_PT_OFFSET)# plus
+            setattr(ds,"p_rown",np.asarray(ds.p_rowcount-tmp[:,1], dtype=np.int64)-util.GLOBAL_PT_OFFSET)# minus
+            setattr(ds,"p_rowd",np.asarray(tmp[:,0], dtype=np.float32))# decimal
         
     def get_basic_cuts(self):
         pave_high=10000.
@@ -243,7 +247,8 @@ class MUTES():
             for attr in attrs:
                 print "......      in mass_calibration_analysis : attr = ", attr
                 print self.target, self.calib_list
-                self.data.calibrate(attr,calib_list,size_related_to_energy_resolution=100,nextra=nextra,forceNew=forceNew,category=category)
+                self.data.calibrate(attr,calib_list,size_related_to_energy_resolution=100,nextra=nextra,
+                                    forceNew=forceNew,category=category,vary_bg=True,vary_tail=True)
                 
     def mass_analysis_transfer_calibration(self, forceNew=False, exttrigNew=False, grptrigNew=False):
         calh5name = self.calibration_hdf5_filename
@@ -305,6 +310,7 @@ class MUTES():
                 ext.define_beam_timing(ds,np.asarray(ds.external_trigger_rowcount[:],dtype=np.int64),forceNew=forceNew)
         
     def timing_analysis(self,forceNew=False):
+        self.data.register_categorical_cut_field("p_dtflag",["on","off"])
         print "timing analysis starts...", forceNew
         for ds in self.data:
             util.init_row_timebase(ds)

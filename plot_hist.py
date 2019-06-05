@@ -31,8 +31,8 @@ tags=["Ne09atm","Ne04atm","Ne01atm"]
 
 # good channel selection
 fwhmth=10.
-#howmany_n=3
-howmany_n=1
+howmany_n=3
+#howmany_n=1
 fgoodch=outdir+"resols_MnKa_th%d_n%d.csv"%(int(fwhmth),howmany_n)
 df = pd.read_csv(fgoodch,header=None)
 goodchs = df.iloc[:,0].tolist()
@@ -50,9 +50,9 @@ for f,tag in zip(fs,tags):
     hene_off   = ROOT.TH1F("hene_off_%s"%tag,"hene_off_%s"%tag,15000,0,15000)
     hene_bon   = ROOT.TH1F("hene_bon_%s"%tag,"hene_bon_%s"%tag,15000,0,15000)
     hene_ton   = ROOT.TH1F("hene_ton_%s"%tag,"hene_ton_%s"%tag,15000,0,15000)
-    htime_all  = ROOT.TH1F("htime_all_%s"%tag,"htime_all_%s"%tag,150,0,150)
-    htime_mune = ROOT.TH1F("htime_mune_%s"%tag,"htime_mune_%s"%tag,150,0,150)
-    h2         = ROOT.TH2F("h2_%s"%tag,"h2_%s"%tag,150,0,150,450,5800,6700)
+    htime_all  = ROOT.TH1F("htime_all_%s"%tag,"htime_all_%s"%tag,600,0,150)
+    htime_mune = ROOT.TH1F("htime_mune_%s"%tag,"htime_mune_%s"%tag,600,0,150)
+    h2         = ROOT.TH2F("h2_%s"%tag,"h2_%s"%tag,600,0,150,450,5800,6700)
 
     hene_offFill=hene_off.Fill
     hene_bonFill=hene_bon.Fill
@@ -91,7 +91,8 @@ for f,tag in zip(fs,tags):
                 h2Fill(e.row_next_extrig_nrp,e.energy)
             if e.energy>=6260 and e.energy<6340:
                 htime_muneFill(e.row_next_extrig_nrp)
-            if e.row_next_extrig_nrp>=65 and e.row_next_extrig_nrp<75:
+            #if e.row_next_extrig_nrp>=65 and e.row_next_extrig_nrp<75:
+            if e.row_next_extrig_nrp>=64 and e.row_next_extrig_nrp<74:
                 hene_tonFill(e.energy)
             
     hene_off.Write()  

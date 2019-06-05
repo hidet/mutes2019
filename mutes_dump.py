@@ -114,6 +114,7 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     bp_rowcount        = np.zeros(1,dtype=np.float64)
     bp_rowp            = np.zeros(1,dtype=np.float64)
     bp_rown            = np.zeros(1,dtype=np.float64)
+    bp_rowd            = np.zeros(1,dtype=np.float32)
     # --- cut paramaters ---
     bp_peak_region_max  = np.zeros(1,dtype=np.float32)                        
     bp_peak_region_mean = np.zeros(1,dtype=np.float32)
@@ -121,6 +122,8 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     bp_jbr_region_sum   = np.zeros(1,dtype=np.float32)
     if EXTTRIG:
         bp_beamOn       = np.zeros(1,dtype=bool)
+        bp_dton         = np.zeros(1,dtype=bool)
+        bp_dt           = np.zeros(1,dtype=np.float64)
         bp_rows_after_last_external_trigger_nrp = np.zeros(1,dtype=np.int64)
         bp_rows_until_next_external_trigger_nrp = np.zeros(1,dtype=np.int64)
         bp_rows_after_last_external_trigger_nrn = np.zeros(1,dtype=np.int64)
@@ -165,6 +168,7 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     ptbranch('rowcount',       bp_rowcount,        'rowcount/D')
     ptbranch('rowp',           bp_rowp,            'rowp/D')
     ptbranch('rown',           bp_rown,            'rown/D')
+    ptbranch('rowd',           bp_rowd,            'rowd/F')
     # --- cut paramaters 
     ptbranch('peak_region_max',  bp_peak_region_max,  'peak_region_max/F')
     ptbranch('peak_region_mean', bp_peak_region_mean, 'peak_region_mean/F')
@@ -172,6 +176,8 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     ptbranch('jbr_region_sum',   bp_jbr_region_sum,   'jbr_region_sum/F')
     if EXTTRIG:
         ptbranch('beam',                bp_beamOn,                               'beam/O')
+        ptbranch('dton',                bp_dton,                                 'dton/O')
+        ptbranch('dt',                  bp_dt,                                   'dt/D')
         ptbranch('row_after_extrig_nrp',bp_rows_after_last_external_trigger_nrp, 'row_after_extrig_nrp/L')
         ptbranch('row_next_extrig_nrp', bp_rows_until_next_external_trigger_nrp, 'row_next_extrig_nrp/L')
         ptbranch('row_after_extrig_nrn',bp_rows_after_last_external_trigger_nrn, 'row_after_extrig_nrn/L')
@@ -187,7 +193,7 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     # loop start
     for ds in data:
         dschan=ds.channum
-        print "channel %d start.... for %.3f (sec)"%(dschan, (time.time() - start))       
+        print "channel %d start.... for %.3f (sec)"%(dschan, (time.time() - start))
         # ---------------------------------------------
         bc_run[0]              = run
         bc_ch[0]               = dschan
@@ -240,8 +246,9 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
         np_rise_time     =np.array(ds.p_rise_time)
         np_timestamp     =np.array(ds.p_timestamp)
         np_rowcount      =np.array(ds.p_rowcount)
-        np_rown          =np.array(ds.p_rown)
-        np_rowp          =np.array(ds.p_rowp)
+        np_rown          =np.array(ds.p_rown)-np.array(ds.p_rowd)# minus
+        np_rowp          =np.array(ds.p_rowp)+np.array(ds.p_rowd)# plus
+        np_rowd          =np.array(ds.p_rowd)# decimal
         # --- cut paramaters 
         np_peak_region_max =np.array(ds.p_peak_region_max)
         np_peak_region_mean=np.array(ds.p_peak_region_mean)
@@ -258,6 +265,8 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
         # --- external trigger ----
         if EXTTRIG:
             np_beamOn                              =np.array(ds.p_beamflag)
+            np_dton                                =np.array(ds.p_dtflag)
+            np_dt = np.array(ds.rows_until_next_external_trigger_nrp)-np.array(ds.p_rowd)# becareful the sign
             np_rows_after_last_external_trigger_nrp=np.array(ds.rows_after_last_external_trigger_nrp)
             np_rows_until_next_external_trigger_nrp=np.array(ds.rows_until_next_external_trigger_nrp)
             np_rows_after_last_external_trigger_nrn=np.array(ds.rows_after_last_external_trigger_nrn)
@@ -329,13 +338,16 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
             bp_timestamp[0]       = np_timestamp[i]               
             bp_rowcount[0]        = np_rowcount[i]                
             bp_rown[0]            = np_rown[i]                 
-            bp_rowp[0]            = np_rowp[i]                 
+            bp_rowp[0]            = np_rowp[i]
+            bp_rowd[0]            = np_rowd[i]                 
             bp_peak_region_max[0] = np_peak_region_max[i]
             bp_peak_region_mean[0]= np_peak_region_mean[i]
             bp_pre_region_sum[0]  = np_pre_region_sum[i]
             bp_jbr_region_sum[0]  = np_jbr_region_sum[i]
             if EXTTRIG:
                 bp_beamOn[0]      = np_beamOn[i]
+                bp_dton[0]        = np_dton[i]                 
+                bp_dt[0]          = np_dt[i]                 
                 bp_rows_after_last_external_trigger_nrp[0] = np_rows_after_last_external_trigger_nrp[i]
                 bp_rows_until_next_external_trigger_nrp[0] = np_rows_until_next_external_trigger_nrp[i]
                 bp_rows_after_last_external_trigger_nrn[0] = np_rows_after_last_external_trigger_nrn[i]

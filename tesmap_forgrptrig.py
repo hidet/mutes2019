@@ -497,7 +497,7 @@ def getPlotDensityPlane(i=1,j=1,k=1,chans=[1],resols=[1.]):
 def plotAliveChFromCSV(fname="hoge.csv",columns=['chans']):
     df = pd.read_csv(fname,header=None)
     df.columns=columns
-    chans=df.iloc[:,0].values
+    chans=df.chans.values
     dummy=np.ones(len(chans),dtype=np.float32)
     plt.figure(figsize=(8, 8))
     ax=getPlotDensityPlane(1,1,1,chans,dummy)
@@ -510,9 +510,10 @@ def plotAliveChFromCSV(fname="hoge.csv",columns=['chans']):
 def plotDensityPlaneFromCSV(fname="hoge.csv",columns=['chans','resols','resols_err']):
     df = pd.read_csv(fname,header=None)
     df.columns=columns
+    df.loc[df.resols==0,'resols'] = 50.
     df.loc[df.resols>50,'resols'] = 50.
-    chans=df.iloc[:,0].values
-    resols=df.iloc[:,1].values
+    chans=df.chans.values
+    resols=df.resols.values
     plt.figure(figsize=(8, 8))
     ax=getPlotDensityPlane(1,1,1,chans,resols)
     ax.set_title(fname)

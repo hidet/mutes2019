@@ -36,7 +36,9 @@ import pandas as pd
 import optparse
 
 import mutes_ana as MUTES
-MUTES= reload(MUTES) # for ipython to reload when it changed
+import tesmap_forgrptrig as tesmap
+tesmap = reload(tesmap)
+MUTES = reload(MUTES) # for ipython to reload when it changed
 
 print "[START] " + __file__
 
@@ -47,13 +49,11 @@ print "DATADIR = ", DATADIR
 
 if ANADIR == "" or DATADIR == "":
     print "[ERROR] Set MUTESANADIR and MUTESDATADIR"
-    print "e.g., for bash users"
     sys.exit()
     
 BADCHS = [3,9,39,77,83,85,111,337,367,375,423]# initially disconnected
 BADCHS.extend([117,203,233])# bad channels
 BADCHS.extend([5,177,257,265,293])# strange channels
-#BADCHS.extend([17])# ?? is this strange?
 BADCHS.sort()
 
 maxchans = 240
@@ -64,7 +64,8 @@ if os.path.isdir(DATADIR)==False:
     sys.exit()
 
 RUNTAG=DATADIR.split("TMU_")[-1]
-RUNINFO="./csv/data_TMU_%s.csv"%(RUNTAG)
+RUNTAG="TMU_"+RUNTAG# e.g., TMU_2019H
+RUNINFO="./csv/data_%s.csv"%(RUNTAG)
 if os.path.exists(RUNINFO)==False: 
     print "%s is missing"%RUNINFO
     sys.exit(0)
@@ -197,7 +198,7 @@ elif ana_list[ind]=="noise":
 cal_run = None if str(cal_list[ind]) == "None" else int(cal_list[ind])
 cal_noise_run = None
 if cal_run is not None:
-    calind = run_list.index(str(cal_run))
+    calind = run_list.index(cal_run)
     cal_noise_run = int(noise_list[calind])
 analist = [(run_p, int(run_n), ana_target, exttrig, grptrig, cal_run, cal_noise_run,BADCHS)]
 
@@ -335,7 +336,7 @@ chans=data.channel.keys()
 
 
 # ------------------------------------------------------------
-
+# functions to run script as standalone
 def localfit(ds,linename,category=None):
     '''
      NOTE parameters of MultiLorentzianComplexFitter
@@ -371,6 +372,33 @@ def localfit(ds,linename,category=None):
     return fitter
 
 
+def localfit_goodchs(data,linename,goodchs,category=None):
+    elo,ehi = mass.STANDARD_FEATURES[linename]-50,mass.STANDARD_FEATURES[linename]+50
+    edges = np.arange(elo,ehi,1)
+    p_energy = []
+    for ds in data:
+        if not ds.channum in goodchs: continue
+        if category is not None:
+            good = ds.cuts.good(**category)
+        else:
+            good = ds.good()
+        p_energy.extend(ds.p_energy[good])
+    p_energy = np.asarray(p_energy, dtype=np.float32)
+    counts, _ = np.histogram(p_energy,edges)
+    fitter = mass.getfitter(linename)
+    fitter.fit(counts,edges,plot=False)
+    params = fitter.last_fit_params[:]
+    params[fitter.param_meaning["tail_frac"]]=0.25
+    params[fitter.param_meaning["dP_dE"]]=1
+    params[fitter.param_meaning["resolution"]]=6
+    fitter.fit(counts,edges,params=params,hold=[2],vary_tail=True,plot=False)
+    # hold[2]: fixing dP_dE
+    #print "---------------------------"
+    #print fitter.result_string()
+    #print "---------------------------"
+    return fitter
+
+
 def decay_time_rough(ds,idx):
     y = ds.read_trace(idx)-ds.p_pretrig_mean[idx]
     peak_value = ds.p_peak_value[idx]
@@ -382,7 +410,9 @@ def decay_time_rough(ds,idx):
         dis = np.where(np.abs(y2-dp)<100)[0]
     dt = np.mean(dis)*ds.timebase*1e6# micro sec
     return dt
-    
+# ------------------------------------------------------------
+
+
 
 # ------------------------------------------------------------
 from matplotlib.backends.backend_pdf import PdfPages
@@ -395,18 +425,20 @@ if ana_target=="Mn":
 elif ana_target=="Fe" or ana_target=="Co57":
     linename="FeKAlpha"
 
-if exttrig=="off" and grptrig=="off":
-    catecut={}
+# catecut adjust
+if exttrig=="off" and grptrig=="off": catecut={}
 
-
+# 8 columns, 30 rows, 240 chs
 ncols = 8
 nrows = 30
 divx1, divy1 = 6, 5
 
-outdir="./output/"
-fresolname=outdir+'run%d_resol.csv'%(run_p[0])
+outdir="./output/%s/"%(RUNTAG)
+if os.path.isdir(outdir)==False: os.makedirs(outdir)
+# ------------------------------------------------------------
 
 # energy resolution
+fresolname=outdir+'run%d_resol.csv'%(run_p[0])
 if not os.path.isfile(fresolname):
     f = open(fresolname, 'w')
     writer = csv.writer(f, lineterminator='\n')
@@ -418,21 +450,19 @@ if not os.path.isfile(fresolname):
             fig = plt.figure(figsize=(20,15))
             for ich in xrange(1,nrows+1,1):
                 ch = (icol-1)*nrows*2+ich*2-1
-                if ch in chans:
-                    if ch==61: continue
-                    ds = data.channel[ch]
-                    fitter = localfit(ds,linename,category=catecut)
-                    res = fitter.last_fit_params_dict["resolution"][0]
-                    res_err = fitter.last_fit_params_dict["resolution"][1]
-                    ch = ds.channum
-                    print "%03d,%.2f,%.2f"%(ch,res,res_err)
-                    if math.isnan(res):
-                        res=1e3
-                        res_err=1e3
-                    res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err])
-                    ax = plt.subplot(divx1,divy1,ich)
-                    fitter.plot(axis=ax,ph_units='eV')
-                    ax.set_title("chan %d"%ch)
+                if not ch in chans: continue
+                ds = data.channel[ch]
+                fitter = localfit(ds,linename,category=catecut)
+                res = fitter.last_fit_params_dict["resolution"][0]
+                res_err = fitter.last_fit_params_dict["resolution"][1]
+                print "%03d,%.2f,%.2f"%(ch,res,res_err)
+                if math.isnan(res) or res==0.:
+                    res=1e3
+                    res_err=1e3
+                res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err])
+                ax = plt.subplot(divx1,divy1,ich)
+                fitter.plot(axis=ax,ph_units='eV')
+                ax.set_title("chan %d"%ch)
             fig.tight_layout()
             pdf.savefig()
             plt.close()
@@ -441,58 +471,52 @@ if not os.path.isfile(fresolname):
     print "%s is created."%pdfname
     print "%s is created."%fresolname
 
+
 chs=[]
+resmax=10.# FWHM < 10 eV
+goodchs=[]
 resols=[]
 if os.path.isfile(fresolname):
     df = pd.read_csv(fresolname,header=None)
-    chs    = df.iloc[:,0].tolist()
-    resols = df.iloc[:,1].tolist()
+    df.columns = ['ch','res','res_err']
+    chs    = df.ch.tolist()
+    resols = df.res.tolist()
+    goodchs = df[df.res<resmax].ch.tolist()
+    pdfname=outdir+"run%d_fit_%s_resolmap.pdf"%(run_p[0],linename)
+    with PdfPages(pdfname) as pdf:
+        ax=tesmap.plotDensityPlaneFromCSV(fresolname)
+        pdf.savefig()
+        plt.close()
+    print "%s is created."%pdfname
     
 
-pdfname=outdir+"run%d_pretrig_mean.pdf"%(run_p[0])
+pdfname=outdir+"run%d_fit_%s_%dpixels.pdf"%(run_p[0],linename,len(goodchs))
 with PdfPages(pdfname) as pdf:
-    print "printing...", pdfname
-    for icol in xrange(1,ncols+1,1):
-        fig = plt.figure(figsize=(20,15))
-        for ich in xrange(1,nrows+1,1):
-            ch = (icol-1)*nrows*2+ich*2-1
-            if ch in chans:
-                ds = data.channel[ch]
-                g = ds.cuts.good(**catecut)# good event cuts
-                ax = plt.subplot(divx1,divy1,ich)
-                ax.scatter(ds.p_timestamp[g],ds.p_pretrig_mean[g])
-                ax.set_xlabel("timestamp")
-                ax.set_ylabel("pretrig mean")
-                ch = ds.channum
-                print "%03d"%(ch)
-                ax.set_title("chan %d"%ch)
-                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
-        fig.tight_layout()
-        pdf.savefig()
-        plt.close()
-
-
-edges = np.arange(5000,15010,10)
-pdfname=outdir+"run%d_filt_value.pdf"%(run_p[0])
-with PdfPages(pdfname) as pdf:
-    print "printing...", pdfname
-    for icol in xrange(1,ncols+1,1):
-        fig = plt.figure(figsize=(20,15))
-        for ich in xrange(1,nrows+1,1):
-            ch = (icol-1)*nrows*2+ich*2-1
-            if ch in chans:
-                ds = data.channel[ch]
-                g = ds.cuts.good(**catecut)# good event cuts
-                ax = plt.subplot(divx1,divy1,ich)
-                counts, _ = np.histogram(ds.p_filt_value[g],edges)
-                ax.step(edges[:-1],counts)
-                ch = ds.channum
-                print "%03d"%(ch)
-                ax.set_title("chan %d filt_value"%ch)
-                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
-        fig.tight_layout()
-        pdf.savefig()
-        plt.close()
+    fig = plt.figure(figsize=(8, 8))
+    fitter = localfit_goodchs(data,linename,goodchs=goodchs,category=catecut)
+    ref_mean = mass.STANDARD_FEATURES[linename]
+    res = fitter.last_fit_params_dict["resolution"][0]
+    res_err = fitter.last_fit_params_dict["resolution"][1]
+    mean = fitter.last_fit_params_dict["peak_ph"][0]
+    mean_err = fitter.last_fit_params_dict["peak_ph"][1]
+    tailf = fitter.last_fit_params_dict["tail_frac"][0]
+    tailf_err = fitter.last_fit_params_dict["tail_frac"][1]
+    tailt = fitter.last_fit_params_dict["tail_length"][0]
+    tailt_err = fitter.last_fit_params_dict["tail_length"][1]
+    print "---- %s %d pixels----"%(linename,len(goodchs))
+    print "ref mean:  %.4f         eV"%(ref_mean)
+    print "fit mean:  %.4f +- %.4f eV"%(mean,mean_err)
+    print "diff mean: %.4f +- %.4f eV"%(mean-ref_mean,mean_err)
+    print "resol:     %.4f +- %.4f eV"%(res,res_err)
+    print "fit tailf: %.4f +- %.4f   "%(tailf,tailf_err)
+    print "fit tailt: %.4f +- %.4f eV"%(tailt,tailt_err)
+    ax = plt.subplot(1,1,1)
+    fitter.plot(axis=ax,ph_units='eV',label='full')
+    ax.set_title("fit %s %d pixels (FWHM < %.1f eV)"%(linename,len(goodchs),resmax))
+    fig.tight_layout()
+    pdf.savefig()
+    plt.close()
+print "%s is created."%pdfname
 
 
 attr_phc='p_filt_value_phc'
@@ -511,42 +535,85 @@ with PdfPages(pdfname) as pdf:
                 elif ds.calibration.has_key(attr_dc):cal = ds.calibration[attr_dc]
                 else: continue
                 cal.plot(axis=ax)
-                ch = ds.channum
                 print "%03d"%(ch)
                 ax.set_title("chan %d energy calibration curve"%ch)
                 if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
         fig.tight_layout()
         pdf.savefig()
         plt.close()
+print "%s is created."%pdfname
 
 
-x=np.arange(1024)
-x=x-256
-pdfname=outdir+"run%d_good_pulses.pdf"%(run_p[0])
-with PdfPages(pdfname) as pdf:
-    print "printing...", pdfname
-    for icol in xrange(1,ncols+1,1):
-        fig = plt.figure(figsize=(20,15))
-        for ich in xrange(1,nrows+1,1):
-            ch = (icol-1)*nrows*2+ich*2-1
-            if ch in chans:
-                ds = data.channel[ch]
-                g = ds.cuts.good(**catecut)# good event cuts
-                ax = plt.subplot(divx1,divy1,ich)
-                good_pulse_idx = np.where(g)[0]
-                for i in range(2):
-                    y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
-                    dt = decay_time_rough(ds,good_pulse_idx[i])
-                    ax.plot(x*ds.timebase*1e3,y,label="decay time = %.0f us"%dt)
-                    ax.set_xlabel("time (ms)")
-                    ax.set_ylabel("fead back value (arb)")
-                
-                ch = ds.channum
-                print "%03d"%(ch)
-                ax.set_title("chan %d"%ch)
-                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
-                ax.legend()
-        fig.tight_layout()
-        pdf.savefig()
-        plt.close()
+#        
+#pdfname=outdir+"run%d_pretrig_mean.pdf"%(run_p[0])
+#with PdfPages(pdfname) as pdf:
+#    print "printing...", pdfname
+#    for icol in xrange(1,ncols+1,1):
+#        fig = plt.figure(figsize=(20,15))
+#        for ich in xrange(1,nrows+1,1):
+#            ch = (icol-1)*nrows*2+ich*2-1
+#            if ch in chans:
+#                ds = data.channel[ch]
+#                g = ds.cuts.good(**catecut)# good event cuts
+#                ax = plt.subplot(divx1,divy1,ich)
+#                ax.scatter(ds.p_timestamp[g],ds.p_pretrig_mean[g])
+#                ax.set_xlabel("timestamp")
+#                ax.set_ylabel("pretrig mean")
+#                print "%03d"%(ch)
+#                ax.set_title("chan %d"%ch)
+#                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+#        fig.tight_layout()
+#        pdf.savefig()
+#        plt.close()
+#
+
+#edges = np.arange(5000,15010,10)
+#pdfname=outdir+"run%d_filt_value.pdf"%(run_p[0])
+#with PdfPages(pdfname) as pdf:
+#    print "printing...", pdfname
+#    for icol in xrange(1,ncols+1,1):
+#        fig = plt.figure(figsize=(20,15))
+#        for ich in xrange(1,nrows+1,1):
+#            ch = (icol-1)*nrows*2+ich*2-1
+#            if ch in chans:
+#                ds = data.channel[ch]
+#                g = ds.cuts.good(**catecut)# good event cuts
+#                ax = plt.subplot(divx1,divy1,ich)
+#                counts, _ = np.histogram(ds.p_filt_value[g],edges)
+#                ax.step(edges[:-1],counts)
+#                print "%03d"%(ch)
+#                ax.set_title("chan %d filt_value"%ch)
+#                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+#        fig.tight_layout()
+#        pdf.savefig()
+#        plt.close()
+
+
+#x=np.arange(1024)
+#x=x-256
+#pdfname=outdir+"run%d_good_pulses.pdf"%(run_p[0])
+#with PdfPages(pdfname) as pdf:
+#    print "printing...", pdfname
+#    for icol in xrange(1,ncols+1,1):
+#        fig = plt.figure(figsize=(20,15))
+#        for ich in xrange(1,nrows+1,1):
+#            ch = (icol-1)*nrows*2+ich*2-1
+#            if ch in chans:
+#                ds = data.channel[ch]
+#                g = ds.cuts.good(**catecut)# good event cuts
+#                ax = plt.subplot(divx1,divy1,ich)
+#                good_pulse_idx = np.where(g)[0]
+#                for i in range(2):
+#                    y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
+#                    dt = decay_time_rough(ds,good_pulse_idx[i])
+#                    ax.plot(x*ds.timebase*1e3,y,label="decay time = %.0f us"%dt)
+#                    ax.set_xlabel("time (ms)")
+#                    ax.set_ylabel("fead back value (arb)")
+#                print "%03d"%(ch)
+#                ax.set_title("chan %d"%ch)
+#                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
+#                ax.legend()
+#        fig.tight_layout()
+#        pdf.savefig()
+#        plt.close()
 

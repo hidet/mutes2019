@@ -49,7 +49,9 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
     params=["rows_after_last_external_trigger_nrp",
             "rows_until_next_external_trigger_nrp",
             "rows_after_last_external_trigger_nrn",
-            "rows_until_next_external_trigger_nrn"]
+            "rows_until_next_external_trigger_nrn",
+            "p_rowd",
+            "p_dt"]
     if forceNew or not params[0] in ds.hdf5_group:
         print "ch%d external trigger analysis..."%(ds.channum)
         rows_after_last_external_trigger_nrp, rows_until_next_external_trigger_nrp\
@@ -64,10 +66,22 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
         g1nrn[:] = rows_after_last_external_trigger_nrn
         g2nrn    = ds.hdf5_group.require_dataset(params[3],(ds.nPulses,), dtype=np.int64)
         g2nrn[:] = rows_until_next_external_trigger_nrn
+        rdec     = ds.hdf5_group.require_dataset(params[4],(ds.nPulses,), dtype=np.float32)
+        rdec[:]  = ds.p_rowd# decimal
+        pdt      = ds.hdf5_group.require_dataset(params[5],(ds.nPulses,), dtype=np.float64)
+        pdt[:]   = rows_until_next_external_trigger_nrp - ds.p_rowd
     try:
         print "loading ch%d hdf5 file..."%(ds.channum)
         for par in params:
             setattr(ds,par,ds.hdf5_group[par][()])
+        dton = np.logical_and(ds.p_dt>64,ds.p_dt<74)# MUTES2019April
+        ds.cuts.cut_categorical("p_dtflag", {"on": dton,"off": ~dton})
+        h5_dton = ds.hdf5_group.require_dataset("p_dtflag",(ds.nPulses,),dtype=np.int32)
+        h5_dton[:] = dton.astype(int)
+        try:
+            setattr(ds,"p_dtflag",ds.hdf5_group["p_dtflag"][()])
+        except:
+            print "cannot set p_dtflag"
     except:
         print "cannot load, no groups in hdf5 group"
     return
