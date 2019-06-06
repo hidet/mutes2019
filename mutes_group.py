@@ -26,16 +26,20 @@ def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
     # GRTINFO is group trigger channel map
     for ds in data:
         if not forceNew:
+            print ".",
+            sys.stdout.flush()
             for par in sec_params:
                 if par in ds.hdf5_group:
-                    print "loading secondary peak region data from hdf5 file."
+                    #print "loading secondary peak region data from hdf5 file."
                     setattr(ds,par,ds.hdf5_group[par][()])
                 else:
                     print "group trigger data was not set."
                     return False
             continue
         else:
-            print "ch%d secondary peak region analysis ..."%(ds.channum)
+            #print "ch%d secondary peak region analysis ..."%(ds.channum)
+            print "%d,"%(ds.channum),
+            sys.stdout.flush()
             
         npl = ds.nPulses
         p_rows = np.array(ds.p_rowcount[:])
@@ -111,16 +115,20 @@ def calc_group_trigger_params_filtered(data,GRTINFO,forceNew=False,maxgrchs=4):
     # GRTINFO is group trigger channel map
     for ds in data:
         if not forceNew:
+            print ".",
+            sys.stdout.flush()
             for par in sec_params:
                 if par in ds.hdf5_group:
-                    print "loading secondary peak region data from hdf5 file."
+                    #print "loading secondary peak region data from hdf5 file."
                     setattr(ds,par,ds.hdf5_group[par][()])
                 else:
                     print "group trigger data was not set."
                     return False
             continue
         else:
-            print "ch%d secondary peak region analysis filtered ..."%(ds.channum)
+            #print "ch%d secondary peak region analysis filtered ..."%(ds.channum)
+            print "%d,"%(ds.channum),
+            sys.stdout.flush()
             
         npl = ds.nPulses
         p_rows = np.array(ds.p_rowcount[:])

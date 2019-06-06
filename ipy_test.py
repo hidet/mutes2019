@@ -535,7 +535,8 @@ with PdfPages(pdfname) as pdf:
                 elif ds.calibration.has_key(attr_dc):cal = ds.calibration[attr_dc]
                 else: continue
                 cal.plot(axis=ax)
-                print "%03d"%(ch)
+                print "%d,"%(ch),
+                sys.stdout.flush()
                 ax.set_title("chan %d energy calibration curve"%ch)
                 if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
         fig.tight_layout()
@@ -559,7 +560,8 @@ print "%s is created."%pdfname
 #                ax.scatter(ds.p_timestamp[g],ds.p_pretrig_mean[g])
 #                ax.set_xlabel("timestamp")
 #                ax.set_ylabel("pretrig mean")
-#                print "%03d"%(ch)
+#                print "%d,"%(ch),
+#                sys.stdout.flush()
 #                ax.set_title("chan %d"%ch)
 #                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
 #        fig.tight_layout()
@@ -581,7 +583,8 @@ print "%s is created."%pdfname
 #                ax = plt.subplot(divx1,divy1,ich)
 #                counts, _ = np.histogram(ds.p_filt_value[g],edges)
 #                ax.step(edges[:-1],counts)
-#                print "%03d"%(ch)
+#                print "%d,"%(ch),
+#                sys.stdout.flush()
 #                ax.set_title("chan %d filt_value"%ch)
 #                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
 #        fig.tight_layout()
@@ -609,7 +612,8 @@ print "%s is created."%pdfname
 #                    ax.plot(x*ds.timebase*1e3,y,label="decay time = %.0f us"%dt)
 #                    ax.set_xlabel("time (ms)")
 #                    ax.set_ylabel("fead back value (arb)")
-#                print "%03d"%(ch)
+#                print "%d,"%(ch),
+#                sys.stdout.flush()
 #                ax.set_title("chan %d"%ch)
 #                if ch in chs: ax.set_title("chan %d fwhm %.2f eV"%(ch,resols[chs.index(ch)]))
 #                ax.legend()

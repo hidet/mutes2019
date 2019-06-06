@@ -15,6 +15,7 @@ import mutes_ext as ext
 import mutes_util as util
 import numpy as np
 import os
+import sys
 
 from ROOT import gROOT
 gROOT.SetBatch(1)
@@ -193,7 +194,9 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     # loop start
     for ds in data:
         dschan=ds.channum
-        print "channel %d start.... for %.3f (sec)"%(dschan, (time.time() - start))
+        #print "channel %d start.... for %.3f (sec)"%(dschan, (time.time() - start))
+        print "%d,"%(dschan),
+        sys.stdout.flush()
         # ---------------------------------------------
         bc_run[0]              = run
         bc_ch[0]               = dschan

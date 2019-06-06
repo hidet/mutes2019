@@ -29,7 +29,8 @@ def check_external_trigger_data(pulse_runnum,DATADIR):
 def define_beam_timing(ds,external_trigger_rowcount,forceNew=False):
     if forceNew or not "beam" in ds.hdf5_group:
         p_row = np.asarray(ds.p_rowcount, dtype=np.int64) - util.GLOBAL_PT_OFFSET
-        print "ch%d define beam timing ..."%(ds.channum)
+        #print "ch%d define beam timing ..."%(ds.channum)
+        print "%d"%(ds.channum),
         rows_after_last_external_trigger, rows_until_next_external_trigger\
             =mass.core.analysis_algorithms.nearest_arrivals(p_row[:], external_trigger_rowcount)
         rows_from_nearest_external_trigger = np.fmin(rows_after_last_external_trigger[:], rows_until_next_external_trigger[:])
@@ -39,7 +40,9 @@ def define_beam_timing(ds,external_trigger_rowcount,forceNew=False):
         h5_beam[:] = beamOn.astype(int)
     # becareful: the categorical cut means logical_and of good and beamOn
     try:
-        print "loading beamflag hdf5 file ch%d..."%(ds.channum)
+        #print "loading beamflag hdf5 file ch%d..."%(ds.channum)
+        print "%d"%(ds.channum),
+        sys.stdout.flush()
         setattr(ds,"p_beamflag",ds.hdf5_group["beam"][()])
     except:
         print "cannot load, no group of beam in hdf5 group"
@@ -53,7 +56,9 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
             "p_rowd",
             "p_dt"]
     if forceNew or not params[0] in ds.hdf5_group:
-        print "ch%d external trigger analysis..."%(ds.channum)
+        #print "ch%d external trigger analysis..."%(ds.channum)
+        print "%d"%(ds.channum),
+        sys.stdout.flush()
         rows_after_last_external_trigger_nrp, rows_until_next_external_trigger_nrp\
             =mass.core.analysis_algorithms.nearest_arrivals(ds.p_rowp[:], external_trigger_rowcount)
         rows_after_last_external_trigger_nrn, rows_until_next_external_trigger_nrn\
@@ -71,7 +76,9 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
         pdt      = ds.hdf5_group.require_dataset(params[5],(ds.nPulses,), dtype=np.float64)
         pdt[:]   = rows_until_next_external_trigger_nrp - ds.p_rowd
     try:
-        print "loading ch%d hdf5 file..."%(ds.channum)
+        #print "loading ch%d hdf5 file..."%(ds.channum)
+        print ".",
+        sys.stdout.flush()
         for par in params:
             setattr(ds,par,ds.hdf5_group[par][()])
         dton = np.logical_and(ds.p_dt>64,ds.p_dt<74)# MUTES2019April
@@ -91,7 +98,9 @@ def calc_spill_timing(ds,spill_start_rowcount,forceNew=False):
             "rows_until_next_spill_start"]
     # for new_filter use ds.p_rowp, for old_filter use ds.p_rown
     if forceNew or not params[0] in ds.hdf5_group:
-        print "ch%d spill timing analysis..."%(ds.channum)
+        #print "ch%d spill timing analysis..."%(ds.channum)
+        print "%d"%(ds.channum),
+        sys.stdout.flush()
         rows_after_last_spill_start, rows_until_next_spill_start\
             =mass.core.analysis_algorithms.nearest_arrivals(ds.p_rowp[:], spill_start_rowcount)
         g3       = ds.hdf5_group.require_dataset(params[0],(ds.nPulses,), dtype=np.int64)
@@ -99,7 +108,9 @@ def calc_spill_timing(ds,spill_start_rowcount,forceNew=False):
         g4       = ds.hdf5_group.require_dataset(params[1],(ds.nPulses,), dtype=np.int64)
         g4[:]    = rows_until_next_spill_start
     try:
-        print "loading ch%d hdf5 file..."%(ds.channum)
+        #print "loading ch%d hdf5 file..."%(ds.channum)
+        print "%d"%(ds.channum),
+        sys.stdout.flush()
         for par in params:
             setattr(ds,par,ds.hdf5_group[par][()])
     except:
