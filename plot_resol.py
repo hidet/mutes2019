@@ -5,7 +5,8 @@ import numpy as np
 import csv
 from matplotlib.backends.backend_pdf import PdfPages
 
-outdir="./output/TMU_2019G/"
+runtag="TMU_2019G"
+outdir="./output/%s/"%(runtag)
 
 #runs=[36,38,40,43,44,54,61,63,66,67,76,78,84,85,87,88,97,98,100]# all
 runs=[36,38,43,54,61,67,76,84,88,98,100]# MnKa

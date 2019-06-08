@@ -1,0 +1,5 @@
+Run_pulse,run_noise,ana_target,exttrig(on/off),grouptrig(on/off),cryotag(AB...Z),start_date,start_time,end_time,calrun
+0,0,noise,off,off,I,2019/06/07,14:40,14:40,None
+1,0,Mn,off,off,I,2019/06/07,14:44,15:28,None
+2,0,Mn,off,off,I,2019/06/07,15:28,,None
+3,3,noise,off,off,I,2019/06/07,,,None

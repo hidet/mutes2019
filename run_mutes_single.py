@@ -36,50 +36,18 @@ import pandas as pd
 import optparse
 
 import mutes_ana as MUTES
-MUTES= reload(MUTES) # for ipython to reload when it changed
+import tesmap_forgrptrig as tesmap
+tesmap = reload(tesmap)
+MUTES = reload(MUTES) # for ipython to reload when it changed
 
-print "[START] " + __file__
 
-ANADIR=os.environ.get("MUTESANADIR","")
-DATADIR=os.environ.get("MUTESDATADIR","")
-print "ANADIR  = ", ANADIR
-print "DATADIR = ", DATADIR
-
-if ANADIR == "" or DATADIR == "":
-    print "[ERROR] Set MUTESANADIR and MUTESDATADIR"
-    print "e.g., for bash users"
-    sys.exit()
-    
 BADCHS = [3,9,39,77,83,85,111,337,367,375,423]# initially disconnected
 BADCHS.extend([117,203,233])# bad channels
 BADCHS.extend([5,177,257,265,293])# strange channels
-#BADCHS.extend([17])# ?? is this strange?
 BADCHS.sort()
 
 maxchans = 240
 #maxchans = 10
-
-if os.path.isdir(DATADIR)==False: 
-    print "%s is missing"%DATADIR
-    sys.exit()
-
-RUNTAG=DATADIR.split("TMU_")[-1]
-RUNINFO="./csv/data_TMU_%s.csv"%(RUNTAG)
-if os.path.exists(RUNINFO)==False: 
-    print "%s is missing"%RUNINFO
-    sys.exit(0)
-
-#GRTINFO="./csv/grptrig_twocol.txt"
-GRTINFO="./csv/grptrig_wo_neighbor.csv"
-if os.path.exists(GRTINFO)==False: 
-    print "%s is missing"%GRTINFO
-    sys.exit(0)
-    
-COLUMN_INFO = "./csv/column_info.csv"
-if os.path.exists(COLUMN_INFO)==False:
-    print "%s is missing"%COLUMN_INFO
-    sys.exit()
-
 
 usage = u'(1) %prog 278 (basic analysis), (2) %prog 278'
 version = __version__
@@ -102,6 +70,8 @@ parser.add_option('--sprmc',  dest='sprmc',    action="store",type=str, help='se
 parser.add_option('--jbrsc',  dest='jbrsc',    action="store",type=str, help='set jbrsc catecut (default=None, on or off)',default="None")
 parser.add_option('--pre',    dest='cut_pre',  action="store",type=int, help='set cut for pre samples',default=0)
 parser.add_option('--post',   dest='cut_post', action="store",type=int, help='set cut for post samples',default=0)
+parser.add_option('--adr',    dest='adr',      action="store",type=str, help='set adr tag (default=TMU_2019, TMU_2018,TMU_2019,...)',default="TMU_2019")
+parser.add_option('--cool',   dest='cool',     action="store",type=str, help='set cooling tag (default=G, G,H,I,...)',default="G")
 
 options,args = parser.parse_args()
 
@@ -120,9 +90,44 @@ sprmc          = options.sprmc
 jbrsc          = options.jbrsc
 cut_pre        = options.cut_pre
 cut_post       = options.cut_post
+adr            = options.adr
+cool           = options.cool
 
-#use_new_filters=False
-use_new_filters=True
+print "[START] " + __file__
+ANADIR=os.environ.get("MUTESANADIR","")
+DATADIR=os.environ.get("MUTESDATADIR","")
+if ANADIR == "" or DATADIR == "":
+    print "[ERROR] Set MUTESANADIR and MUTESDATADIR"
+    sys.exit()
+tmpdd=DATADIR.split("/TMU_")
+if len(tmpdd)>1: DATADIR=tmpdd[0]# if you set the enf of DATADIR as /TMU_2019X
+RUNTAG=adr+cool# TMU_2019X
+DATADIR=DATADIR+"/"+RUNTAG
+print "RUNTAG  = ", RUNTAG
+print "ANADIR  = ", ANADIR
+print "DATADIR = ", DATADIR
+
+if os.path.isdir(DATADIR)==False: 
+    print "%s is missing"%DATADIR
+    print "please check the options --adr=TMU_2019 or --cool=G,H,I,... "
+    sys.exit()
+
+RUNINFO="./csv/data_%s.csv"%(RUNTAG)
+if os.path.exists(RUNINFO)==False: 
+    print "%s is missing"%RUNINFO
+    sys.exit(0)
+
+#GRTINFO="./csv/grptrig_twocol.txt"
+GRTINFO="./csv/grptrig_wo_neighbor.csv"
+if os.path.exists(GRTINFO)==False: 
+    print "%s is missing"%GRTINFO
+    sys.exit(0)
+    
+COLUMN_INFO = "./csv/column_info.csv"
+if os.path.exists(COLUMN_INFO)==False:
+    print "%s is missing"%COLUMN_INFO
+    sys.exit()
+
 
 catecut = {}
 prime = "on"; catecut["prime"] = prime;
@@ -136,21 +141,22 @@ if GRPTRIG and DUMPROOT: ROOTGRP=True
 
 print ""
 print "--- [OPTIONS] ----------------------"
+print "    %s      "%(RUNTAG)
 print "  (standard)"
-print "    FORCE          = ", FORCE
-print "    SUMMARY        = ", SUMMARY
-print "    CALIB          = ", CALIB
-print "    EXTTRIG        = ", EXTTRIG
-print "    GRPTRIG        = ", GRPTRIG
-print "    DELETE         = ", DELETE
-print "    catecut        = ", catecut
-print "    cut_pre        = ", cut_pre
-print "    cut_post       = ", cut_post
+print "    FORCE      = ", FORCE
+print "    SUMMARY    = ", SUMMARY
+print "    CALIB      = ", CALIB
+print "    EXTTRIG    = ", EXTTRIG
+print "    GRPTRIG    = ", GRPTRIG
+print "    DELETE     = ", DELETE
+print "    catecut    = ", catecut
+print "    cut_pre    = ", cut_pre
+print "    cut_post   = ", cut_post
 print ""
-print "  (ROOT)             "
-print "    DUMPROOT       = ", DUMPROOT
-print "    ROOTEXT        = ", ROOTEXT
-print "    ROOTGRP        = ", ROOTGRP
+print "  (ROOT)         "
+print "    DUMPROOT   = ", DUMPROOT
+print "    ROOTEXT    = ", ROOTEXT
+print "    ROOTGRP    = ", ROOTGRP
 print "------------------------------------"
 
 npar = len(args)
@@ -173,13 +179,11 @@ ana_list = df.iloc[:,2].tolist()
 exttrig_list = df.iloc[:,3].tolist()
 grptrig_list = df.iloc[:,4].tolist()
 cal_list = df.iloc[:,9].tolist()
-
 if isinstance(run_p,list)==False:
     run_p = (run_p,)
     run_p = tuple(run_p)
-
-ind = run_list.index(run_p[0])
 run_p = [int(r) for r in run_p]
+ind = run_list.index(run_p[0])
 irn = int(noise_list[ind])
 run_n="%04d"%irn
 ana_target = ana_list[ind]
@@ -196,12 +200,12 @@ elif ana_list[ind]=="noise":
 cal_run = None if str(cal_list[ind]) == "None" else int(cal_list[ind])
 cal_noise_run = None
 if cal_run is not None:
-    calind = run_list.index(str(cal_run))
+    calind = run_list.index(cal_run)
     cal_noise_run = int(noise_list[calind])
 analist = [(run_p, int(run_n), ana_target, exttrig, grptrig, cal_run, cal_noise_run,BADCHS)]
 
-for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum, badchan in analist:
-    print "..... run, noise, target, exttrig, grptrig, cal_run, cal_noise = ", pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, calibration_noisenum
+for pulse_runnums, noise_runnum, target, extflag, grpflag, cal_runnum, cal_noisenum, badchan in analist:
+    print "..... run, noise, target, exttrig, grptrig, cal_run, cal_noise = ", pulse_runnums, noise_runnum, target, extflag, grpflag, cal_runnum, cal_noisenum
     print "BADCHAN = ", badchan
     # ---------------------------------------------------------
     # when external trigger or group trigger is off, those flags are forced to be false. 
@@ -221,10 +225,9 @@ for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, c
 #    if grouptrigmax: 
 #        GRTINFO = "./csv/grptrig_singlethread_all.txt"
     # ---------------------------------------------------------
-    mutes = MUTES.MUTES(pulse_runnums, noise_runnum, maxchans, calibration_runnum, calibration_noisenum,
+    mutes = MUTES.MUTES(pulse_runnums, noise_runnum, maxchans, cal_runnum, cal_noisenum,
                         badchan, DATADIR, DELETE, GRTINFO, COLUMN_INFO,
-                        catecut=catecut, target=target,
-                        cut_pre=cut_pre, cut_post=cut_post, use_new_filters=use_new_filters)
+                        catecut=catecut, target=target,cut_pre=cut_pre, cut_post=cut_post)
     mutes.ana(forceNew=FORCE,summaryNew=SUMMARY,calibNew=CALIB,exttrigNew=EXTTRIG,grptrigNew=GRPTRIG)
     # ---------------------------------------------------------
     if DUMPROOT:
@@ -246,5 +249,3 @@ for pulse_runnums, noise_runnum, target, extflag, grpflag, calibration_runnum, c
     if GRPTRIG and DUMPROOT: ROOTGRP=True
     # ---------------------------------------------------------
 
-
-# end

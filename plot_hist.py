@@ -21,8 +21,9 @@ def set_hist(h,xtitle="",ytitle=""):
     h.GetYaxis().SetTitle(ytitle)
 
 
-outdir="./output/TMU_2019G/"
-ROOTDIR="%s/dumproot"%(os.environ['MUTESDATADIR'])
+runtag="TMU_2019G"
+outdir="./output/%s/"%(runtag)
+ROOTDIR="%s/%s/dumproot"%(os.environ['MUTESDATADIR'],runtag)
 cut="_spilloff_sprmcon_jbrscon_prime"
 fnames = [ROOTDIR+"/run0036/run0036_noi0035_mass_2019%s.root"%cut,
           ROOTDIR+"/run0058/run0058_noi0055_mass_2019_58_59%s.root"%cut,

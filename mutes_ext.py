@@ -26,21 +26,21 @@ def check_external_trigger_data(pulse_runnum,DATADIR):
     dir_p = os.path.join(datadir,"run%04d"%pulse_runnum)
     return os.path.isfile("%s/run%04d_extern_trig.hdf5"%(dir_p,pulse_runnum))
 
-def define_beam_timing(ds,external_trigger_rowcount,forceNew=False):
+def define_beam_timing(ds,external_trigger_rowcount,typical_external_trigger_spacing,forceNew=False):
     if forceNew or not "beam" in ds.hdf5_group:
+        print ".",
+        sys.stdout.flush()
         p_row = np.asarray(ds.p_rowcount, dtype=np.int64) - util.GLOBAL_PT_OFFSET
-        #print "ch%d define beam timing ..."%(ds.channum)
-        print "%d"%(ds.channum),
         rows_after_last_external_trigger, rows_until_next_external_trigger\
-            =mass.core.analysis_algorithms.nearest_arrivals(p_row[:], external_trigger_rowcount)
+            =mass.core.analysis_algorithms.nearest_arrivals(p_row[:], external_trigger_rowcount[:])
         rows_from_nearest_external_trigger = np.fmin(rows_after_last_external_trigger[:], rows_until_next_external_trigger[:])
-        beamOn = rows_from_nearest_external_trigger*util.ROW_TIMEBASE<100e-06# within 100 us?
+        # beamOn: if the pulse timing is within 20 times of the typical external triggers spacing
+        beamOn = rows_from_nearest_external_trigger * util.ROW_TIMEBASE < 20. * typical_external_trigger_spacing
+        #beamOn = rows_from_nearest_external_trigger*util.ROW_TIMEBASE<100e-06# within 100 us?
         ds.cuts.cut_categorical("beam", {"on": beamOn,"off": ~beamOn})
         h5_beam = ds.hdf5_group.require_dataset("beam",(ds.nPulses,),dtype=np.int32)
         h5_beam[:] = beamOn.astype(int)
-    # becareful: the categorical cut means logical_and of good and beamOn
     try:
-        #print "loading beamflag hdf5 file ch%d..."%(ds.channum)
         print "%d"%(ds.channum),
         sys.stdout.flush()
         setattr(ds,"p_beamflag",ds.hdf5_group["beam"][()])
@@ -57,7 +57,7 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
             "p_dt"]
     if forceNew or not params[0] in ds.hdf5_group:
         #print "ch%d external trigger analysis..."%(ds.channum)
-        print "%d"%(ds.channum),
+        print ".",
         sys.stdout.flush()
         rows_after_last_external_trigger_nrp, rows_until_next_external_trigger_nrp\
             =mass.core.analysis_algorithms.nearest_arrivals(ds.p_rowp[:], external_trigger_rowcount)
@@ -77,11 +77,11 @@ def calc_external_trigger_timing(ds,external_trigger_rowcount,forceNew=False):
         pdt[:]   = rows_until_next_external_trigger_nrp - ds.p_rowd
     try:
         #print "loading ch%d hdf5 file..."%(ds.channum)
-        print ".",
+        print "%d"%(ds.channum),
         sys.stdout.flush()
         for par in params:
             setattr(ds,par,ds.hdf5_group[par][()])
-        dton = np.logical_and(ds.p_dt>64,ds.p_dt<74)# MUTES2019April
+        dton = np.logical_and(ds.p_dt>40,ds.p_dt<90)# MUTES2019April wide
         ds.cuts.cut_categorical("p_dtflag", {"on": dton,"off": ~dton})
         h5_dton = ds.hdf5_group.require_dataset("p_dtflag",(ds.nPulses,),dtype=np.int32)
         h5_dton[:] = dton.astype(int)
@@ -99,7 +99,7 @@ def calc_spill_timing(ds,spill_start_rowcount,forceNew=False):
     # for new_filter use ds.p_rowp, for old_filter use ds.p_rown
     if forceNew or not params[0] in ds.hdf5_group:
         #print "ch%d spill timing analysis..."%(ds.channum)
-        print "%d"%(ds.channum),
+        print ".",
         sys.stdout.flush()
         rows_after_last_spill_start, rows_until_next_spill_start\
             =mass.core.analysis_algorithms.nearest_arrivals(ds.p_rowp[:], spill_start_rowcount)
@@ -480,19 +480,27 @@ class Spill():
     MIN_SPILLS = 50
     #def __init__(self, ds, threshold=0.4):
     # 2018/06/20 Hide: changed to use self extrn values
-    def __init__(self, ds, extrn_trig_rowc=None, extrn_trig_rowc_as_sec=None, threshold=0.4):
+    def __init__(self, ds, extrig=None, extrigsec=None, threshold=0.4):
         self.ds = ds
-        self.runstr = os.path.split(ds.filename)[-1][:7]
-        if extrn_trig_rowc == None:
-            try:
-                self.external_trigger_rowcount = np.asarray(ds.external_trigger_rowcount[:], dtype=np.int64)
-                self.external_trigger_rowcount_as_seconds = np.array(ds.external_trigger_rowcount_as_seconds[:])
-            except:
-                print "no spill, no external trigger data in ds"
-                return None
+        self.external_trigger_rowcount = None
+        self.external_trigger_rowcount_as_seconds = None
+        self.typical_external_trigger_spacing = None
+        #self.runstr = os.path.split(ds.filename)[-1][:7]
+        self.runstr = os.path.split(ds.filename[0])[-1][:7]
+        if extrig is not None:
+            self.external_trigger_rowcount = np.asarray(extrig[:],dtype=np.int64)
+            self.external_trigger_rowcount_as_seconds = np.asarray(extrigsec[:],dtype=np.float64)
         else:
-            self.external_trigger_rowcount = extrn_trig_rowc
-            self.external_trigger_rowcount_as_seconds = extrn_trig_rowc_as_sec
+            if self.external_trigger_rowcount==None:
+                try:
+                    self.external_trigger_rowcount = np.asarray(ds.external_trigger_rowcount[:], dtype=np.int64)
+                    self.external_trigger_rowcount_as_seconds = np.asarray(ds.external_trigger_rowcount_as_seconds[:], dtype=np.float64)
+                except:
+                    print "no spill, no external trigger data in ds"
+                    return None
+            else:
+                print "Spill() is already loaded"
+        
         self.spill_starts(threshold)
         if not self.have_enough_spills():
             print "number of spills is too small"

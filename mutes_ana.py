@@ -48,13 +48,12 @@ tesmap = reload(tesmap)
 
 
 class MUTES():
-    def __init__(self,pulse_runnums, noise_runnum, maxchans,
-                 calibration_runnum, calibration_noisenum, badchans,
-                 DATADIR, DELETE, GRTINFO, COLUMN_INFO,
-                 catecut=None, target="Mn", cut_pre=0, cut_post=0,
-                 use_new_filters=True):
+    def __init__(self,pulse_runnums, noise_runnum, maxchans=240,
+                 cal_runnum=None, calibration_noisenum=None, badchans=[],
+                 DATADIR="", DELETE=False, GRTINFO="", COLUMN_INFO="",
+                 catecut=None, target="Mn", cut_pre=0, cut_post=0):
         self.noise_runnum=noise_runnum
-        self.calibration_runnum=calibration_runnum
+        self.cal_runnum=cal_runnum
         self.calibration_noisenum=calibration_noisenum
         self.maxchans=maxchans
         self.DATADIR = DATADIR
@@ -75,26 +74,35 @@ class MUTES():
                 self.multiruns += "_%s"%(run)
         self.usechans = util.get_usechans(self.first_pulse_runnum,self.noise_runnum,self.maxchans,self.badchans,self.DATADIR)
 
+        # -----------------------------
         self.cut_pre = cut_pre
         self.cut_post = cut_post
-        self.use_new_filters=use_new_filters
-        self.target = target
         self.catecut = catecut
+        # -----------------------------
+        self.target = target
+        self.calib_list=None
+        self.linefit_dict = {}
+        # -----------------------------
         self.spill=None
         self.extall=True
-        self.linefit_dict = {}
-
-        self.trans = False
-        self.calibration_hdf5_filename = None
-        if not self.calibration_runnum is None:
-            self.trans = True
-            cal_pulse_files,cal_noise_files = util.get_file_lists(self.calibration_runnum,self.noise_runnum,
+        self.external_trigger_rowcount=None
+        self.external_trigger_rowcount_as_seconds=None
+        # -----------------------------
+        self.use_new_filters=True
+        self.vary_bg=True
+        self.vary_tail=True
+        self.masstag="_mass_2019"
+        # --- calibration transfer ---
+        self.calibration_hdf5_filename=None
+        if self.cal_runnum is not None:
+            cal_pulse_files,cal_noise_files = util.get_file_lists(self.cal_runnum,self.noise_runnum,
                                                                   self.maxchans,self.badchans,self.DATADIR)
-            self.calibration_hdf5_filename = util.generate_hdf5_filename(cal_pulse_files[0],"_noi%04d"%self.calibration_noisenum+"_mass_2019") # assuming add="" in the name of a calibration run
-       
+            # assuming add="" in the name of a calibration run
+            self.calibration_hdf5_filename = util.generate_hdf5_filename(cal_pulse_files[0],"_noi%04d"%(self.calibration_noisenum)+self.masstag)
+       # --- catecut and file names ---
         add=self.multiruns
         if self.use_new_filters==False:           add += "_old_filter"
-        if self.trans:                            add += "_trans%d"%self.calibration_runnum
+        if self.cal_runnum is not None:           add += "_trans%d"%self.cal_runnum
         if self.cut_pre>0 or self.cut_post>0:     add += "_pre%03d_post%03d"%(self.cut_pre,self.cut_post)
         if len(self.catecut)>0:
             if self.catecut.has_key('beam'):
@@ -113,21 +121,19 @@ class MUTES():
                 if self.catecut['prime']=='off':  add += "_sec"
                 elif self.catecut['prime']=='on': add += "_prime"
                 elif self.catecut['prime']=='None': self.catecut.pop('prime')
-            self.catecutname=str(catecut).replace(":","").replace(" ","").replace("'","").replace("{","").replace("}","").replace(",","_")
-        if len(self.catecut)==0:
+        elif len(self.catecut)==0:
             self.catecut=None
-            self.catecutname="nocatecut" 
-                
-        self.hdf5_filename       = util.generate_hdf5_filename(self.first_pulse_file,"_noi%04d"%self.noise_runnum+"_mass_2019"+add)
+        # --- HDF5 ---
+        self.hdf5_filename       = util.generate_hdf5_filename(self.first_pulse_file,"_noi%04d"%self.noise_runnum+self.masstag+add)
         self.hdf5_noisefilename  = util.generate_hdf5_filename(self.first_pulse_file,"_noi%04d"%self.noise_runnum+"_noise"+add)
         if DELETE: self.delete_hdf5_outputs()
-
-        self.rootdir=dump.ROOTDIR+"/run%04d/"%self.first_pulse_runnum
+        # --- ROOT ---
+        self.rootdir="%s/dumproot/run%04d/"%(DATADIR,self.first_pulse_runnum)
         if os.path.isdir(self.rootdir)==False: os.makedirs(self.rootdir)
-        self.root_filename = util.generate_user_root_filename(self.rootdir,"run%04d_noi%04d"%(self.first_pulse_runnum,self.noise_runnum)+"_mass_2019"+add)
-            
+        self.root_filename = util.generate_user_root_filename(self.rootdir,"run%04d_noi%04d"%(self.first_pulse_runnum,self.noise_runnum)+self.masstag+add)
+        # --- Load LJH data ---
         self.data = mass.TESGroup(self.pulse_files, self.noise_files, hdf5_filename=self.hdf5_filename, hdf5_noisefilename=self.hdf5_noisefilename)
-        
+            
     def delete_hdf5_outputs(self):
         try:
             os.remove(self.hdf5_filename)
@@ -138,62 +144,21 @@ class MUTES():
         except OSError:
             pass
 
-    def define_spill(self,threshold=0.4):
-        ds = self.data.first_good_dataset
-        util.init_row_timebase(ds)
-        print "define spills..."
-        self.spill = ext.Spill(ds,threshold=threshold)
-
-    def adjust_rowcount(self):
-        for ds in self.data:
-            # be careful, to adjust phase, you do filter the data first
-            p_row_adj = -1.*(np.asarray(ds.p_shift1,dtype=np.float64)+np.asarray(ds.p_filt_phase,dtype=np.float64))*util.NUM_ROWS
-            tmp=np.array([math.modf(p) for p in p_row_adj])
-            setattr(ds,"p_rowp",np.asarray(ds.p_rowcount+tmp[:,1], dtype=np.int64)-util.GLOBAL_PT_OFFSET)# plus
-            setattr(ds,"p_rown",np.asarray(ds.p_rowcount-tmp[:,1], dtype=np.int64)-util.GLOBAL_PT_OFFSET)# minus
-            setattr(ds,"p_rowd",np.asarray(tmp[:,0], dtype=np.float32))# decimal
-        
-    def get_basic_cuts(self):
-        pave_high=10000.
-        peak_value_max = 40000.
-        cuts = mass.core.controller.AnalysisControl(
-            pulse_average=(10, pave_high),
-            pretrigger_rms=(1, 50),
-            peak_value=(1000, peak_value_max),
-            #        postpeak_deriv=(0, 50),
-            rise_time_ms=(0.07, 0.25),
-            peak_time_ms=(0.1,  0.8),
-        )
-        return cuts
-        
-
     def ana(self,forceNew=False,summaryNew=False,calibNew=False,
-            exttrigNew=False,grptrigNew=False,bcutflag=True):
+            exttrigNew=False,grptrigNew=False):
 
         if forceNew==True: calibNew=True
         # --- set good for bad channels ---
-        #self.data.set_chan_good(self.data.why_chan_bad.keys())
-        for ds in self.data.datasets:
-            if ds.channum not in self.data.good_channels:
-                self.data.set_chan_good(ds.channum)
-                    
+        self.data.set_chan_good(self.data.why_chan_bad.keys())
         # ------ DO NOT USE cython with record length cuts ------ HT 20190116
         use_cython = False
         print 'summarize_data', summaryNew
         self.data.summarize_data(cut_pre=self.cut_pre,cut_post=self.cut_post,
                                  use_cython=use_cython,forceNew=summaryNew,
                                  use_new_filters=self.use_new_filters)
-
-        print 'basic cuts', bcutflag
-        if bcutflag==True:
-            bcut = self.get_basic_cuts()
-            self.data.apply_cuts(bcut, forceNew=True)
-        for ds in self.data:
-            h5_good = ds.hdf5_group.require_dataset("good",(ds.nPulses,),dtype=np.int32)
-            h5_good[:] = np.array(ds.good()).astype(int)
-            setattr(ds,"p_goodflag",ds.hdf5_group["good"][()])
-        
-        # please fill categorical cuts first (e.g., beam "on:off" or sprmc "on:off")
+        # --- define good with basic cut
+        self.apply_basic_cuts()        
+        # -- fill categorical cuts first (e.g., beam "on:off" or sprmc "on:off")
         self.prime_analysis()
         self.jbrs_analysis(jbrsc_th=350,jbrsc_thn=-400)
         # external trigger data checking
@@ -202,59 +167,85 @@ class MUTES():
                 self.extall=False
                 print "Error: external trigger file is missing on run %d"%pr
         if self.extall:
-            #self.define_spill(threshold=0.4)
-            self.beamflag_analysis(forceNew=exttrigNew)
+            try:
+                self.external_trigger_rowcount = np.asarray(self.data.first_good_dataset.external_trigger_rowcount[:], dtype=np.int64)
+                self.external_trigger_rowcount_as_seconds = np.asarray(self.data.first_good_dataset.external_trigger_rowcount_as_seconds[:], dtype=np.float64)
+                #self.define_spill(threshold=0.4,extrig=self.external_trigger_rowcount[:],extrigsec=self.external_trigger_rowcount_as_seconds[:])
+                #if self.spill is not None:
+                self.beamflag_analysis(forceNew=exttrigNew)
+            except:
+                print "something bad for external trigger rowcount"
         self.group_trigger_peak_region_analysis(forceNew=grptrigNew,sprmc_th=10,sprmc_thn=-10)
 
         # basic analysis
-        if self.trans==False:
-            print 'basic analysis', forceNew
+        if self.cal_runnum is None:# not transfer calib
+            print "\n basic analysis...", forceNew
+            print "\n average pulse auto masks"
             self.data.avg_pulses_auto_masks(forceNew=forceNew,category=self.catecut)
+            print "\n compute filters"
             self.data.compute_filters(cut_pre=self.cut_pre,cut_post=self.cut_post,forceNew=forceNew,category=self.catecut)
+            print "\n filter data"
             self.data.filter_data(forceNew=forceNew)
+            print "\n drift correction"
             self.data.drift_correct(forceNew=forceNew,category=self.catecut)
+            print "\n phase correction"
             self.data.phase_correct(forceNew=forceNew,category=self.catecut)
+            print "\n auto energy calibration"
             self.mass_calibration_analysis(forceNew=calibNew,category=self.catecut)
-            self.adjust_rowcount() # ds.p_rowp, ds.p_rown
+            self.adjust_rowcount() # ds.p_rowp, ds.p_rown, ds.p_rowd
             if self.extall: self.timing_analysis(forceNew=exttrigNew) # external trigger timing
             self.group_trigger_peak_region_analysis_filtered(forceNew=grptrigNew) # secondary peak region ene
         else:
             self.mass_analysis_transfer_calibration(forceNew,exttrigNew,grptrigNew)
+    # ana END
 
-            
+    def define_spill(self,threshold=0.4,extrig=None,extrigsec=None):
+        ds = self.data.first_good_dataset
+        util.init_row_timebase(ds)
+        print "define spills..."
+        if extrig is None: self.spill = ext.Spill(ds,threshold=threshold)
+        else:              self.spill = ext.Spill(ds,extrig=extrig,extrigsec=extrigsec,threshold=threshold)
+        
+    def adjust_rowcount(self):
+        print "\n adjusting rowcount..."
+        for ds in self.data:
+            # be careful, to adjust phase, you do filter the data first
+            p_row_adj = -1.*(np.asarray(ds.p_shift1,dtype=np.float64)+np.asarray(ds.p_filt_phase,dtype=np.float64))*util.NUM_ROWS
+            tmp=np.array([math.modf(p) for p in p_row_adj])
+            setattr(ds,"p_rowp",np.asarray(ds.p_rowcount+p_row_adj, dtype=np.int64)-util.GLOBAL_PT_OFFSET)# plus
+            setattr(ds,"p_rown",np.asarray(ds.p_rowcount-p_row_adj, dtype=np.int64)-util.GLOBAL_PT_OFFSET)# minus
+            setattr(ds,"p_rowd",np.asarray(tmp[:,0], dtype=np.float32))# decimal
+        
     def mass_calibration_analysis(self, forceNew=False, category=None):
-        self.calib_list = []
-        if self.calibration_runnum is None:
-            nextra=3
-            if self.target == "CrCoCu":
-                calib_list = ["CrKAlpha","CrKBeta","CoKAlpha","CoKBeta","CuKAlpha"]
-            elif self.target == "CrCo":
-                calib_list = ["CrKAlpha","CrKBeta","CoKAlpha","CoKBeta"]
-            elif self.target == "Mn":             
-                calib_list = ["MnKAlpha","MnKBeta"]
-            elif self.target == "Fe":             
-                calib_list = ["FeKAlpha","FeKBeta"]
-            elif self.target == "Co57":# added for Co57 analysis, pls check data_TMU_XXXX.csv file
-                calib_list = ["FeKAlpha","FeKBeta","Co57_14keV"]
-                mass.STANDARD_FEATURES["Co57_14keV"]=14412.95# 14.4 keV
-                nextra=0
-            else:
-                print "[Error] calib_list is out of range ", self.target
-                return False
-            self.calib_list = calib_list
-            attrs=["p_filt_value_dc","p_filt_value_phc"]
-            # NOTE: self.p_energy is overwritten with the last used attr
-            for attr in attrs:
-                print "......      in mass_calibration_analysis : attr = ", attr
-                print self.target, self.calib_list
-                self.data.calibrate(attr,calib_list,size_related_to_energy_resolution=100,nextra=nextra,
-                                    forceNew=forceNew,category=category,vary_bg=True,vary_tail=True)
-                
+        nextra=3# number of extra  peaks for energy calibration
+        if self.target == "CrCoCu":
+            self.calib_list = ["CrKAlpha","CrKBeta","CoKAlpha","CoKBeta","CuKAlpha"]
+        elif self.target == "CrCo":
+            self.calib_list = ["CrKAlpha","CrKBeta","CoKAlpha","CoKBeta"]
+        elif self.target == "Mn":             
+            self.calib_list = ["MnKAlpha","MnKBeta"]
+        elif self.target == "Fe":             
+            self.calib_list = ["FeKAlpha","FeKBeta"]
+        elif self.target == "Co57":# added for Co57 analysis, pls check data_TMU_XXXX.csv file
+            self.calib_list = ["FeKAlpha","FeKBeta","Co57_14keV"]
+            mass.STANDARD_FEATURES["Co57_14keV"]=14412.95# 14.4 keV
+            nextra=0
+        else:
+            print "[Error] calib_list is out of range ", self.target
+            return False
+        attrs=["p_filt_value_dc","p_filt_value_phc"]
+        # NOTE: self.p_energy is overwritten with the last used attr
+        for attr in attrs:
+            print "mass_calibration_analysis : attr = ", attr
+            print self.target, self.calib_list
+            self.data.calibrate(attr,self.calib_list,size_related_to_energy_resolution=100,nextra=nextra,
+                                forceNew=forceNew,category=category,vary_bg=self.vary_bg,vary_tail=self.vary_tail)
+            
     def mass_analysis_transfer_calibration(self, forceNew=False, exttrigNew=False, grptrigNew=False):
         calh5name = self.calibration_hdf5_filename
         if not os.path.isfile(calh5name):
 	    print "%s is not found... end the calibration transfer"%calh5name
-            print "Please create %s OR set calrun as None in the csv file"%calh5name
+            print "Please create %s OR set 'calrun' as 'None' in the csv file"%calh5name
             return False
         caldata = mass.TESGroupHDF5(calh5name)
         
@@ -300,26 +291,50 @@ class MUTES():
         if self.extall: self.timing_analysis(forceNew=exttrigNew) # external trigger timing
         self.group_trigger_peak_region_analysis_filtered(forceNew=grptrigNew) # secondary peak region ene
 
-
     def beamflag_analysis(self,forceNew=False):
+        print "\n define beam timing ...", forceNew
         self.data.register_categorical_cut_field("beam",["on","off"])
+        typical_external_trigger_spacing=5e-06# 5 usec * 20 = 100 usec
         for ds in self.data:
             util.init_row_timebase(ds)
-            if hasattr(ds,"external_trigger_rowcount"):
-                #if self.spill is not None: ext.define_beam_timing(ds,self.spill,forceNew=forceNew)
-                ext.define_beam_timing(ds,np.asarray(ds.external_trigger_rowcount[:],dtype=np.int64),forceNew=forceNew)
+            #if self.spill is not None:
+            ext.define_beam_timing(ds,self.external_trigger_rowcount[:],
+                                   typical_external_trigger_spacing,forceNew=forceNew)
         
     def timing_analysis(self,forceNew=False):
+        print "\n timing analysis starts...", forceNew
         self.data.register_categorical_cut_field("p_dtflag",["on","off"])
-        print "timing analysis starts...", forceNew
+        #external_trigger_rowcount=util.get_beam_clocks('clock2',self.pulse_runnum)
+        #external_trigger_rowcount2=util.get_beam_clocks('clock3',self.pulse_runnum)
         for ds in self.data:
             util.init_row_timebase(ds)
-            if hasattr(ds,"external_trigger_rowcount"):
-                ext.calc_external_trigger_timing(ds,np.asarray(ds.external_trigger_rowcount[:],dtype=np.int64),forceNew=forceNew)
-                #if self.spill is not None: ext.calc_spill_timing(ds,np.array(self.spill.spill_start_rowcount,dtype=np.int64),forceNew=forceNew)
+            if self.external_trigger_rowcount is not None:
+                ext.calc_external_trigger_timing(ds,self.external_trigger_rowcount[:],forceNew=forceNew)
+            #if self.spill is not None:
+            #    ext.calc_spill_timing(ds,np.asarray(self.spill.spill_start_rowcount[:],dtype=np.int64),forceNew=forceNew)
+            #ext.calc_external_trigger_timing_from_dat(ds,external_trigger_rowcount,'clock2',forceNew=forceNew)
+            #ext.calc_external_trigger_timing_from_dat(ds,external_trigger_rowcount2,'clock3',forceNew=forceNew)
 
+    def apply_basic_cuts(self):
+        print "\n apply basic cuts... (always update)"
+        pave_max=10000
+        peak_value_max = 40000
+        bcut = mass.core.controller.AnalysisControl(
+            pulse_average=(10, pave_max),
+            pretrigger_rms=(1, 50),
+            peak_value=(1000, peak_value_max),
+            #postpeak_deriv=(0, 50),
+            rise_time_ms=(0.07, 0.25),
+            peak_time_ms=(0.1,  0.8),
+        )
+        self.data.apply_cuts(bcut, forceNew=True)
+        for ds in self.data:
+            h5_good = ds.hdf5_group.require_dataset("good",(ds.nPulses,),dtype=np.int32)
+            h5_good[:] = np.array(ds.good()).astype(int)
+            setattr(ds,"p_goodflag",ds.hdf5_group["good"][()])    
+            
     def prime_analysis(self):
-        print "primary analysis starts... (always update)"
+        print "\n primary analysis starts... (always update)"
         self.data.register_categorical_cut_field("prime",["on","off"])
         for ds in self.data:
             grti = np.array(ds.p_grouptrig)# group trig ch info
@@ -332,7 +347,7 @@ class MUTES():
             setattr(ds,"p_prime",ds.hdf5_group["prime"][()])
             
     def jbrs_analysis(self,jbrsc_th=350,jbrsc_thn=-400):
-        print "jbr analysis starts... (always update)"
+        print "\n jbr analysis starts... (always update)"
         self.data.register_categorical_cut_field("jbrsc",["on","off"])
         for ds in self.data:
             jbrscp = np.array(ds.p_jbr_region_sum)<jbrsc_th
@@ -348,7 +363,7 @@ class MUTES():
         sprmc_th : sec_pr_mean < 37 is a preliminary value derived by run 269 (X-ray and Beam), run 136,137,138, and 139 (beam only)
         10 could be a good starting point after removed MUX neighbor cross talk, and added the limit of negative side
         """
-        print "group trigger analysis starts...", forceNew
+        print "\n group trigger analysis starts...", forceNew
         self.data.register_categorical_cut_field("sprmc",["on","off"])
         flag=grp.calc_group_trigger_params(self.data,self.GRTINFO,forceNew=forceNew)
         if flag==False:
@@ -364,7 +379,7 @@ class MUTES():
             setattr(ds,"p_sprmc",ds.hdf5_group["sprmc"][()])
             
     def group_trigger_peak_region_analysis_filtered(self,forceNew=False):
-        print "group trigger analysis filtered starts...", forceNew
+        print "\n group trigger analysis filtered starts...", forceNew
         grp.calc_group_trigger_params_filtered(self.data,self.GRTINFO,forceNew=forceNew)
 
     def dump_ROOT(self, EXTTRIG=False, GRTRIG=False, dumppulse=False):

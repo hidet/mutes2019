@@ -21,7 +21,6 @@ from ROOT import gROOT
 gROOT.SetBatch(1)
 import ROOT
 
-ROOTDIR="%s/dumproot"%(os.environ['MUTESDATADIR'])
 
 
 def root_hist1d(values,inds=[],name="h1",nbin=10,minx=0,maxx=10,title="",xtitle="",ytitle=""):
@@ -35,6 +34,12 @@ def root_hist1d(values,inds=[],name="h1",nbin=10,minx=0,maxx=10,title="",xtitle=
     h.GetYaxis().SetTitle(ytitle)
     return h
 
+
+def set_hist1d(h,values,inds=[],title="",xtitle="",ytitle=""):
+    if len(inds)==0: inds=np.arange(len(values))
+    n = len(inds)
+    h.FillN(n,np.array(values,dtype=np.float64)[inds],np.ones(n,dtype=np.float64))
+    
 
 def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
     
@@ -191,11 +196,51 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
         ptbranch('sec_enemean',     bp_sec_enemean,     'sec_enemean/F')
         ptbranch('sec_enemax',      bp_sec_enemax,      'sec_enemax/F')
 
+    # ---------------------------------------------------------------------
+    nbin = 25000
+    minx = 0.
+    maxx = 25000.
+    hene_gpj_name="hene_gpj%d"%(run)
+    hene_gpj = ROOT.TH1F(hene_gpj_name,hene_gpj_name,nbin,minx,maxx)
+    hene_gpj.GetXaxis().SetTitle("Energy (eV)")
+    hene_gpj.GetYaxis().SetTitle("Counts / eV")
+    hene_gpj.Sumw2()
+    if EXTTRIG and GRTRIG:    
+        hene_onsprmon_name="hene_onsprmon%d"%(run)
+        hene_onsprmon = ROOT.TH1F(hene_onsprmon_name,hene_onsprmon_name,nbin,minx,maxx)
+        hene_onsprmon.GetXaxis().SetTitle("Energy (eV)")
+        hene_onsprmon.GetYaxis().SetTitle("Counts / eV")
+        hene_onsprmon.Sumw2()
+        hene_offsprmon_name="hene_offsprmon%d"%(run)
+        hene_offsprmon = ROOT.TH1F(hene_offsprmon_name,hene_offsprmon_name,nbin,minx,maxx)
+        hene_offsprmon.GetXaxis().SetTitle("Energy (eV)")
+        hene_offsprmon.GetYaxis().SetTitle("Counts / eV")
+        hene_offsprmon.Sumw2()
+        hene_tcut_name="hene_tcut%d"%(run)
+        hene_tcut = ROOT.TH1F(hene_tcut_name,hene_tcut_name,nbin,minx,maxx)
+        hene_tcut.GetXaxis().SetTitle("Energy (eV)")
+        hene_tcut.GetYaxis().SetTitle("Counts / eV")
+        hene_tcut.Sumw2()
+        nbin = 150
+        minx = 0.
+        maxx = 150.
+        htime_onsprmon_name="htime_onsprmon%d"%(run)
+        htime_onsprmon = ROOT.TH1F(htime_onsprmon_name,htime_onsprmon_name,nbin,minx,maxx)
+        htime_onsprmon.GetXaxis().SetTitle("Time (1ch=240ns)")
+        htime_onsprmon.GetYaxis().SetTitle("Counts / ch")
+        htime_onsprmon.Sumw2()
+        htime_mune_name="htime_mune%d"%(run)
+        htime_mune = ROOT.TH1F(htime_mune_name,htime_mune_name,nbin,minx,maxx)
+        htime_mune.GetXaxis().SetTitle("Time (1ch=240ns)")
+        htime_mune.GetYaxis().SetTitle("Counts / ch")
+        htime_mune.Sumw2()
+    # ---------------------------------------------------------------------
+        
     # loop start
     for ds in data:
         dschan=ds.channum
         #print "channel %d start.... for %.3f (sec)"%(dschan, (time.time() - start))
-        print "%d,"%(dschan),
+        print "%d"%(dschan),
         sys.stdout.flush()
         # ---------------------------------------------
         bc_run[0]              = run
@@ -274,15 +319,42 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
             np_rows_until_next_external_trigger_nrp=np.array(ds.rows_until_next_external_trigger_nrp)
             np_rows_after_last_external_trigger_nrn=np.array(ds.rows_after_last_external_trigger_nrn)
             np_rows_until_next_external_trigger_nrn=np.array(ds.rows_until_next_external_trigger_nrn)
-        
+
+        # --- event selection ---
+        # good-primary-jbrsc
+        gp  = np.logical_and(np_good,np_prim)
+        gpj = np.logical_and(gp,np_jbrsc)
+        gpj_ind=np.where(gpj==True)[0]
+        enecut = np.logical_and(np_energy>6260,np_energy<6340)
+        tcut = np.logical_and(np_dt>40,np_dt<90)# too wide
+        if EXTTRIG and GRTRIG:
+            # good-primary-jbrsc-beamOn-sprmc
+            onsprmon = np.logical_and(np_beamOn,np_sprmc)
+            gpj_onsprmon = np.logical_and(gpj,onsprmon)
+            gpj_onsprmon_ind = np.where(gpj_onsprmon==True)[0]
+            # good-primary-jbrsc-beamOff-sprmc
+            offsprmon = np.logical_and(~np_beamOn,np_sprmc)
+            gpj_offsprmon = np.logical_and(gpj,offsprmon)
+            gpj_offsprmon_ind = np.where(gpj_offsprmon==True)[0]
+            enecut2 = np.logical_and(enecut,gpj_onsprmon)
+            enecut2_ind = np.where(enecut2==True)[0]
+            tcut2 = np.logical_and(tcut,gpj_onsprmon)
+            tcut2_ind = np.where(tcut2==True)[0]
+        # --------------------------------------------------------------------------
+        f.cd()
+        set_hist1d(hene_gpj,np_energy,gpj_ind)
+        if EXTTRIG and GRTRIG:
+            set_hist1d(hene_onsprmon,np_energy,gpj_onsprmon_ind)
+            set_hist1d(hene_offsprmon,np_energy,gpj_offsprmon_ind)
+            set_hist1d(hene_tcut,np_energy,tcut2_ind)
+            set_hist1d(htime_onsprmon,np_dt,gpj_onsprmon_ind)
+            set_hist1d(htime_mune,np_dt,enecut2_ind)
+        # --------------------------------------------------------------------------
         cdhist.cd()
         nbin = 25000
         minx = 0.
         maxx = 25000.
         hout_name = "%s_gpj%d_ch%d"%(util.hpht_phc,run,dschan)
-        gp  = np.logical_and(np_good,np_prim)
-        gpj = np.logical_and(gp,np_jbrsc)
-        gpj_ind=np.where(gpj==True)[0]
         hout = root_hist1d(np_filt_value_phc,gpj_ind,hout_name,nbin,minx,maxx,
                            title="run%04d ch%d filt_value_phc gpj"%(run,dschan),
                            xtitle="filt_value_phc [ch]",ytitle="Counts / ch")
@@ -290,23 +362,18 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
         hout.Delete()
         if EXTTRIG and GRTRIG:
             hout_onsprmon_name = "%s_onsprmon%d_ch%d"%(util.hpht_phc,run,dschan)#  beamon && sprmcon
-            onsprmon = np.logical_and(np_beamOn,np_sprmc)
-            gpj_onsprmon = np.logical_and(gpj,onsprmon)
-            gpj_onsprmon_ind = np.where(gpj_onsprmon==True)[0]
             hout_onsprmon = root_hist1d(np_filt_value_phc,gpj_onsprmon_ind,hout_onsprmon_name,nbin,minx,maxx,
                                         title="run%04d ch%d filt_value_phc gpj_onsprmon"%(run,dschan),
                                         xtitle="filt_value_phc [ch]",ytitle="Counts / ch")
             hout_onsprmon.Write()
             hout_onsprmon.Delete()
             hout_offsprmon_name = "%s_offsprmon%d_ch%d"%(util.hpht_phc,run,dschan)#  beamon && sprmcon
-            offsprmon = np.logical_and(~np_beamOn,np_sprmc)
-            gpj_offsprmon = np.logical_and(gpj,offsprmon)
-            gpj_offsprmon_ind = np.where(gpj_offsprmon==True)[0]
             hout_offsprmon = root_hist1d(np_filt_value_phc,gpj_offsprmon_ind,hout_offsprmon_name,nbin,minx,maxx,
                                         title="run%04d ch%d filt_value_phc gpj_offsprmon"%(run,dschan),
                                         xtitle="filt_value_phc [ch]",ytitle="Counts / ch")
             hout_offsprmon.Write()
             hout_offsprmon.Delete()
+        # --------------------------------------------------------------------------
         f.cd()    
 
         # tree fill
@@ -364,10 +431,19 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
                 bp_sec_enemax[0]      = np_sec_enemax[i]
             ptfill()
 
-            
+    #------------------------
+    f.cd()
+    hene_gpj.Write()
+    if EXTTRIG and GRTRIG:
+        hene_onsprmon.Write()
+        hene_offsprmon.Write()
+        hene_tcut.Write()
+        htime_onsprmon.Write()
+        htime_mune.Write()
     pt.Write()
     ct.Write()
-
-    f.Close()
-    print "End of dump to ROOT for %.3f sec"%((time.time() - start))
+    f.Close("R")
+    #------------------------
+    print "\n End of dump to ROOT for %.3f sec"%((time.time() - start))
     print "-------------------------------------------------"
+
