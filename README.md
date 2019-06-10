@@ -17,7 +17,7 @@ RUNINFO="./csv/data_TMU_2019I.csv"
 ```
 
 ## --- Updated from 2019 June ---
-You can use the options to specify the dataset `TMU_2019X`, for that you just change as simply
+You can use the options to specify the dataset `TMU_2019X`. You just change  simply as
 ```
 export MUTESDATADIR="$MUTESHOME/data"
 ```
@@ -25,27 +25,26 @@ export MUTESDATADIR="$MUTESHOME/data"
 
 
 # Options
-Be careful, the default value is `False` or `None`.
-
+Be careful, the default value is defined as `False` or `None`.
 For examples:
-- calibration run (first)
+ 1. calibration run (first)
 ```python run_mutes_single.py 76 -R```
-- calibration run (update)
+ 2. calibration run (to update)
 ```python run_mutes_single.py 76 -fsc -R```
-- beam run (first)
+ 3. beam run (first)
 ```python run_mutes_single.py 58,59 -eg -REG```
-- beam run (update)
+ 4. beam run (to update)
 ```python run_mutes_single.py 58,59 -fsceg -REG```
-- to delete the hdf5 file
+ 5. to delete the hdf5 file
 ```python run_mutes_single.py 58,59 -egd -REG```
-- to use beam off data for making filter templates and analyzing with more clean pulses 
+ 6. to use 'beam off' or 'spill off' categorical cuts for making filter templates and analyzing with more clean pulses 
 ```python run_mutes_single.py 58,59 -egd -REG --beam=off```
-- to use selections with group trigger data (e.g., sprmc)
-- ```python run_mutes_single.py 58,59 -egd -REG --beam=off --sprmc=on```
-- to specify the dataset `TMU_2019I` without changing the environment variables
+ 7. to use selections with group trigger data (e.g., sprmc)
+ 8. ```python run_mutes_single.py 58,59 -egd -REG --beam=off --sprmc=on```
+ 9. to specify the dataset `TMU_2019I` without changing the environment variables
 ```python run_mutes_single.py 1,2 -R --adr=TMU_2019 --cool=I```
 
-options for analysis
+- options for analysis
 ```
 '-f', '--force',    dest='forceNew',   action='store_true',  help='True to update filter (default=False)'
 '-s', '--summary',  dest='summaryNew', action='store_true',  help='True to update summary (default=False)'
@@ -58,7 +57,7 @@ options for analysis
 '-G', '--rootgrp',  dest='rootgrp',    action='store_true',  help='True ROOT with groupTrig (default=False)'
 ```
 
-categorical cuts for analyzing average pulse, filter template, drift correction, etc...
+- categorical cuts for analyzing average pulse, filter template, drift correction, etc...
 ```
 '--beam',   dest='beam',     action="store",type=str, help='set beam catecut (default=None, on or off)',default="None")
 '--sprmc',  dest='sprmc',    action="store",type=str, help='set sprmc catecut (default=None, on or off)',default="None")
@@ -66,31 +65,34 @@ categorical cuts for analyzing average pulse, filter template, drift correction,
 '--pre',    dest='cut_pre',  action="store",type=int, help='set cut for pre samples',default=0)
 '--post',   dest='cut_post', action="store",type=int, help='set cut for post samples',default=0)
 ```
-to specify dataset (from 2019 June)
+- to specify dataset (from 2019 June)
 ```
 '--adr',    dest='adr',      action="store",type=str, help='set adr tag (default=TMU_2019, TMU_2018, ...)',default="TMU_2019")
 '--cool',   dest='cool',     action="store",type=str, help='set cooling tag (default=G, A,B,C...)',default="G")
 ```
 # External trigger timing
-The external trigger timing is defined as the time difference between the external triggers and each pulse. The unit is ```row (np.int64 or np.uint64)``` count which is 240 ns in the TMU system (2018-2019). <watch out overflows when you calculate with ```row```>
+The external trigger timing is defined as the time difference between the external triggers and each pulse. The unit is ```row (np.int64 or np.uint64)```, one count is 240 ns in the TMU system (2018-2019). *Watch out overflows when you calculate with* ```row```.
 
-Each pulse has two timing values, (1) ```rows_after_last_external_trigger``` and (2) ```rows_until_next_external_trigger```. The relation of two values is like this;
+The external trigger data are recorded with an independent client. The file name is usually this like ```runXXXX_extern_trig.hdf5``` . This file is read in ```channel.py``` by ```external_trigger_rowcount()```. [^1]
+[^1]: This function `external_trigger_rowcount()` should be run just once by any `ds`. In multiple-run analysis, each numpy array is appended (usually numpy array should not be appended because of slow, but in this case I'd like to keep the dtype to avoid the overflows).
+
+
+Each pulse has two relative timing to the external triggers,
+
+ 1.  ```rows_after_last_external_trigger```
+ 2.  ```rows_until_next_external_trigger```
+
+The relation of two values is like this;
 ```
 ----- ext ----- pulse ------------- ext ---
-            ^--after_last .   ^--until_next
+            ^---after_last   ^---until_next
 ```
-These are just the integer comparisons to avoid the overflows. The decimal information ```ds.p_rowd``` is obtained by filtering the pulse. To adjust the filtered timing, there are two options, add ```ds.p_rowp``` or subtract ```ds.p_rown```. 
+In this case, the pulse is closer to the last external trigger. These are just the integer comparisons to avoid the overflows. The decimal information ```ds.p_rowd``` is obtained by filtering the pulse. To adjust the integer value, there are two options to add ```ds.p_rowp``` or to subtract ```ds.p_rown```.  Unfortunately the sign depends on the version of filter. The added value ```ds.p_rowp``` is created by the newest filter, so you can use it with ```rows_after_last_external_trigger_nrp``` and ```rows_until_next_external_trigger_nrp```.
 
+### New filter or old filter
+The new filter parameter is defined in ```mutes_ana.py``` as  ```self.use_new_filters=True```. If you want to try the old filter, just change the value to ```False```. 
 
-
-
-
-# New filter or old filter
-The pulse height and timing information are obtained by filtering each pulse with a template (made from average pulse and noise spectrum). There are two methods in mass code, called new or old filter. The new filter looks better than the old one, but it is complicated to follow.
-
-The new filter is used in ```mutes_ana.py``` with the value ```self.use_new_filters=True```. If you want to try the old filter, just change the value to ```False```. 
-
-Be careful, the timing information of old filter has the  opposite sign. You need to choose the negative-sign values for beam timing analysis in ```mutes_ext.py```, especially you should do manually...
+Be careful, the timing information derived from old filter has the *opposite sign*. You need to choose the negative-sign values for old-filter analysis in ```mutes_ext.py```, especially you should do manually to calculate ```ds.p_dt``` (time difference with decimal values)
 - for new filter
 ```
 pdt[:]   = rows_until_next_external_trigger_nrp - ds.p_rowd
@@ -100,16 +102,33 @@ pdt[:]   = rows_until_next_external_trigger_nrp - ds.p_rowd
 pdt[:]   = rows_until_next_external_trigger_nrn - ds.p_rowd
 ```
 
-
-
 # Energy calibration with low-energy tail
 
+First of all, the definition of *fitter* for energy calibration was changed from `mass_nov2018`.  It is now in `fluorescence_lines.py`, and the attributes are global.
 
+One of the simplest ways to get a fitter: `fitter = mass.getfitter(linename)`.
 
+- fit parameters
+```
+NOTE parameters of MultiLorentzianComplexFitter
+param_meaning = {
+"resolution": 0,
+"peak_ph": 1,
+"dP_dE": 2,
+"amplitude": 3,
+"background": 4,
+"bg_slope": 5,
+"tail_frac": 6,
+"tail_length": 7
+}
+```
+Usually, the `dP_dE` is fixed by a guess value at each line. To enable fitting of background and low-energy tail, you need to specify `vary_bg=True` and `vary_tail=True`, respectively. Both `vary_bg` and  `vary_tail` are defined in `mutes_ana.py`, you can change them if you want to switch on/off. [^2] [^3] [^4]
 
+[^2]: Fitting with low-energy tail is necessary to achieve a 0.1-eV class accurate energy calibration. But if it is too slow, you just skip the LE-tail fitting by setting `vary_tail=False`.
 
+[^3]: The optimization procedure is the `MaximumLikelihoodHistogramFitter()`. To fit  with LE-tail, you need to specify boundary conditions for the tail parameters (tail fraction and tail scale length).
 
-
+[^4]: The original `autocal()` code of mass has no setting of the `vary_tail` parameter. This is why the energy calibration has not been accurate even with choosing the proper X-ray lines.
 
 
 
@@ -117,9 +136,6 @@ pdt[:]   = rows_until_next_external_trigger_nrn - ds.p_rowd
 
 
 ---
-
-
-
 
 
 ## License
