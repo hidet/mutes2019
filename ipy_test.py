@@ -44,6 +44,7 @@ MUTES = reload(MUTES) # for ipython to reload when it changed
 BADCHS = [3,9,39,77,83,85,111,337,367,375,423]# initially disconnected
 BADCHS.extend([117,203,233])# bad channels
 BADCHS.extend([5,177,257,265,293])# strange channels
+BADCHS.extend([17])
 BADCHS.sort()
 
 maxchans = 240
@@ -252,7 +253,9 @@ for pulse_runnums, noise_runnum, target, extflag, grpflag, cal_runnum, cal_noise
 
 # all data
 data = mutes.data
-chans=data.channel.keys()
+chans  = data.channel.keys()# all channels
+bchans = data._bad_channums.keys()# bad channels
+gchans = [ds.channum for ds in data if ds.channum not in bchans]# good channels
 
 # ------------------------------------------
 ## data set of first good channel
@@ -406,10 +409,12 @@ def decay_time_rough(ds,idx):
     peak_index = ds.p_peak_index[idx]
     dp = peak_value/np.exp(1)
     y2 = y[peak_index:]
-    dis = np.where(np.abs(y2-dp)<50)[0]
-    if len(dis==0):
-        dis = np.where(np.abs(y2-dp)<100)[0]
-    dt = np.mean(dis)*ds.timebase*1e6# micro sec
+    #dis = np.where(np.abs(y2-dp)<50)[0]
+    #if len(dis==0):
+    #    dis = np.where(np.abs(y2-dp)<100)[0]
+    #dt = np.mean(dis)*ds.timebase*1e6# micro sec
+    dis = np.abs(y2-dp).argmin()
+    dt = dis*ds.timebase*1e6# micro sec
     return dt
 # ------------------------------------------------------------
 
@@ -435,35 +440,45 @@ nrows = 30
 divx1, divy1 = 6, 5
 
 outdir="./output/%s/"%(RUNTAG)
+#outdir="./output/"
 if os.path.isdir(outdir)==False: os.makedirs(outdir)
 # ------------------------------------------------------------
 
-# energy resolution
-fresolname=outdir+'run%d_resol.csv'%(run_p[0])
+
+# ------------------------------------------------------------
+# energy resolutions by calibrated histograms
+fresolname=outdir+'%s_run%d_resol.csv'%(RUNTAG,run_p[0])
 if not os.path.isfile(fresolname):
     f = open(fresolname, 'w')
     writer = csv.writer(f, lineterminator='\n')
     res_list=[]
-    pdfname=outdir+"run%d_fit_%s.pdf"%(run_p[0],linename)
+    pdfname=outdir+"%s_run%d_fit_%s.pdf"%(RUNTAG,run_p[0],linename)
     with PdfPages(pdfname) as pdf:
         print "printing...", pdfname
         for icol in xrange(1,ncols+1,1):
             fig = plt.figure(figsize=(20,15))
             for ich in xrange(1,nrows+1,1):
                 ch = (icol-1)*nrows*2+ich*2-1
-                if not ch in chans: continue
+                if not ch in gchans: continue
                 ds = data.channel[ch]
+                g = ds.cuts.good(**catecut)# good event cuts
                 fitter = localfit(ds,linename,category=catecut)
                 res = fitter.last_fit_params_dict["resolution"][0]
                 res_err = fitter.last_fit_params_dict["resolution"][1]
-                print "%03d,%.2f,%.2f"%(ch,res,res_err)
+                good_pulse_idx = np.where(g)[0]
+                dt=0.
+                if len(good_pulse_idx)>1:
+                    dt1 = decay_time_rough(ds,good_pulse_idx[0])
+                    dt2 = decay_time_rough(ds,good_pulse_idx[1])
+                    dt=(dt1+dt2)/2.
+                print "%03d,%.2f,%.2f,%.2f"%(ch,res,res_err,dt)
                 if math.isnan(res) or res==0.:
                     res=1e3
                     res_err=1e3
-                res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err])
+                res_list.append(["%03d"%ch,"%.2f"%res,"%.2f"%res_err,"%.2f"%dt])
                 ax = plt.subplot(divx1,divy1,ich)
                 fitter.plot(axis=ax,ph_units='eV')
-                ax.set_title("chan %d"%ch)
+                ax.set_title("chan %d, decay time %.2f usec"%(ch,dt))
             fig.tight_layout()
             pdf.savefig()
             plt.close()
@@ -477,21 +492,46 @@ chs=[]
 resmax=10.# FWHM < 10 eV
 goodchs=[]
 resols=[]
+dts=[]
 if os.path.isfile(fresolname):
     df = pd.read_csv(fresolname,header=None)
-    df.columns = ['ch','res','res_err']
+    df.columns = ['ch','res','res_err','decayt']
     chs    = df.ch.tolist()
     resols = df.res.tolist()
+    dts    = df.decayt.tolist()
     goodchs = df[df.res<resmax].ch.tolist()
-    pdfname=outdir+"run%d_fit_%s_resolmap.pdf"%(run_p[0],linename)
+
+    np_chs    = np.array(chs)
+    np_resols = np.array(resols)
+    np_dts    = np.array(dts)
+    pdfname=outdir+"%s_run%d_fit_%s_resolmap.pdf"%(RUNTAG,run_p[0],linename)
     with PdfPages(pdfname) as pdf:
-        ax=tesmap.plotDensityPlaneFromCSV(fresolname)
+        plt.figure(figsize=(8, 8))
+        ax=tesmap.getPlotDensityPlane(1,1,1,np_chs,np_resols)
+        ax.set_title("resol map, "+fresolname)
+        for ch,res in zip(np_chs,np_resols):
+            tesmap.writeFloatTESPos(ax,ch,res,fontsize=7, yoffset=150.0, color='k')
         pdf.savefig()
         plt.close()
     print "%s is created."%pdfname
     
+    pdfname=outdir+"%s_run%d_decay_time_map.pdf"%(RUNTAG,run_p[0])
+    with PdfPages(pdfname) as pdf:
+        plt.figure(figsize=(8, 8))
+        ax=tesmap.getPlotDensityPlane(1,1,1,np_chs,np_dts)
+        ax.set_title("decay time map, "+fresolname)
+        for ch,dt in zip(np_chs,np_dts):
+            tesmap.writeFloatTESPos(ax,ch,dt,fontsize=7, yoffset=150.0, color='k')
+        pdf.savefig()
+        plt.close()
+    print "%s is created."%pdfname
 
-pdfname=outdir+"run%d_fit_%s_%dpixels.pdf"%(run_p[0],linename,len(goodchs))
+
+
+
+# ------------------------------------------------------------
+# fitting summed up good pixels (FWHM<10eV)
+pdfname=outdir+"%s_run%d_fit_%s_%dpixels.pdf"%(RUNTAG,run_p[0],linename,len(goodchs))
 with PdfPages(pdfname) as pdf:
     fig = plt.figure(figsize=(8, 8))
     fitter = localfit_goodchs(data,linename,goodchs=goodchs,category=catecut)
@@ -520,16 +560,20 @@ with PdfPages(pdfname) as pdf:
 print "%s is created."%pdfname
 
 
+
+
+# ------------------------------------------------------------
+# energy calibration curve
 attr_phc='p_filt_value_phc'
 attr_dc='p_filt_value_dc'
-pdfname=outdir+"run%d_calibration_curve.pdf"%(run_p[0])
+pdfname=outdir+"%s_run%d_calibration_curve.pdf"%(RUNTAG,run_p[0])
 with PdfPages(pdfname) as pdf:
     print "printing...", pdfname
     for icol in xrange(1,ncols+1,1):
         fig = plt.figure(figsize=(20,15))
         for ich in xrange(1,nrows+1,1):
             ch = (icol-1)*nrows*2+ich*2-1
-            if ch in chans:
+            if ch in gchans:
                 ds = data.channel[ch]
                 ax = plt.subplot(divx1,divy1,ich)
                 if ds.calibration.has_key(attr_phc): cal = ds.calibration[attr_phc]
@@ -546,8 +590,11 @@ with PdfPages(pdfname) as pdf:
 print "%s is created."%pdfname
 
 
-        
-pdfname=outdir+"run%d_pretrig_mean.pdf"%(run_p[0])
+
+
+# ------------------------------------------------------------
+# pretrigger mean
+pdfname=outdir+"%s_run%d_pretrig_mean.pdf"%(RUNTAG,run_p[0])
 with PdfPages(pdfname) as pdf:
     print "printing...", pdfname
     for icol in xrange(1,ncols+1,1):
@@ -570,8 +617,11 @@ with PdfPages(pdfname) as pdf:
         plt.close()
 
 
+
+# ------------------------------------------------------------
+# filtered values
 edges = np.arange(5000,15010,10)
-pdfname=outdir+"run%d_filt_value.pdf"%(run_p[0])
+pdfname=outdir+"%s_run%d_filt_value.pdf"%(RUNTAG,run_p[0])
 with PdfPages(pdfname) as pdf:
     print "printing...", pdfname
     for icol in xrange(1,ncols+1,1):
@@ -593,26 +643,32 @@ with PdfPages(pdfname) as pdf:
         plt.close()
 
 
+
+
+
+# ------------------------------------------------------------
+# good pulses
 x=np.arange(1024)
 x=x-256
-pdfname=outdir+"run%d_good_pulses.pdf"%(run_p[0])
+pdfname=outdir+"%s_run%d_good_pulses.pdf"%(RUNTAG,run_p[0])
 with PdfPages(pdfname) as pdf:
     print "printing...", pdfname
     for icol in xrange(1,ncols+1,1):
         fig = plt.figure(figsize=(20,15))
         for ich in xrange(1,nrows+1,1):
             ch = (icol-1)*nrows*2+ich*2-1
-            if ch in chans:
+            if ch in gchans:
                 ds = data.channel[ch]
                 g = ds.cuts.good(**catecut)# good event cuts
                 ax = plt.subplot(divx1,divy1,ich)
                 good_pulse_idx = np.where(g)[0]
-                for i in range(2):
-                    y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
-                    dt = decay_time_rough(ds,good_pulse_idx[i])
-                    ax.plot(x*ds.timebase*1e3,y,label="decay time = %.0f us"%dt)
-                    ax.set_xlabel("time (ms)")
-                    ax.set_ylabel("fead back value (arb)")
+                if len(good_pulse_idx)>1:
+                    for i in range(2):
+                        y = ds.read_trace(good_pulse_idx[i])-ds.p_pretrig_mean[good_pulse_idx[i]]
+                        dt = decay_time_rough(ds,good_pulse_idx[i])
+                        ax.plot(x*ds.timebase*1e3,y,label="decay time = %.0f us"%dt)
+                        ax.set_xlabel("time (ms)")
+                        ax.set_ylabel("fead back value (arb)")
                 print "%d,"%(ch),
                 sys.stdout.flush()
                 ax.set_title("chan %d"%ch)
@@ -621,4 +677,6 @@ with PdfPages(pdfname) as pdf:
         fig.tight_layout()
         pdf.savefig()
         plt.close()
+
+# ------------------------------------------------------------
 

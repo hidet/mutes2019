@@ -325,8 +325,6 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
         gp  = np.logical_and(np_good,np_prim)
         gpj = np.logical_and(gp,np_jbrsc)
         gpj_ind=np.where(gpj==True)[0]
-        enecut = np.logical_and(np_energy>6260,np_energy<6340)
-        tcut = np.logical_and(np_dt>40,np_dt<90)# too wide
         if EXTTRIG and GRTRIG:
             # good-primary-jbrsc-beamOn-sprmc
             onsprmon = np.logical_and(np_beamOn,np_sprmc)
@@ -336,8 +334,10 @@ def dump_ROOT(data,fout="hoge.root",EXTTRIG=True, GRTRIG=True, dumppulse=False):
             offsprmon = np.logical_and(~np_beamOn,np_sprmc)
             gpj_offsprmon = np.logical_and(gpj,offsprmon)
             gpj_offsprmon_ind = np.where(gpj_offsprmon==True)[0]
+            enecut = np.logical_and(np_energy>6260,np_energy<6340)
             enecut2 = np.logical_and(enecut,gpj_onsprmon)
             enecut2_ind = np.where(enecut2==True)[0]
+            tcut = np.logical_and(np_dt>40,np_dt<90)# too wide
             tcut2 = np.logical_and(tcut,gpj_onsprmon)
             tcut2_ind = np.where(tcut2==True)[0]
         # --------------------------------------------------------------------------
