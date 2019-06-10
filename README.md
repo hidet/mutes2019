@@ -104,9 +104,11 @@ pdt[:]   = rows_until_next_external_trigger_nrn - ds.p_rowd
 
 # Energy calibration with low-energy tail
 
-First of all, the definition of *fitter* for energy calibration was changed from `mass_nov2018`.  It is now in `fluorescence_lines.py`, and the attributes are global.
+The definition of *fitter* for energy calibration was changed from `mass_nov2018`.  It is now in `fluorescence_lines.py`, and the attributes are global.
 
-One of the simplest ways to get a fitter: `fitter = mass.getfitter(linename)`.
+One of the simplest ways to get a single fitter: `fitter = mass.getfitter(linename)`.
+
+In `mute_ana.py`, the automatic energy calibration `autocal()` is used. This can search the peaks and assigned them to the X-ray lines (you need to specify the line names as a list).
 
 - fit parameters
 ```
@@ -122,17 +124,13 @@ param_meaning = {
 "tail_length": 7
 }
 ```
-Usually, the `dP_dE` is fixed by a guess value at each line. To enable fitting of background and low-energy tail, you need to specify `vary_bg=True` and `vary_tail=True`, respectively. Both `vary_bg` and  `vary_tail` are defined in `mutes_ana.py`, you can change them if you want to switch on/off. [^2] [^3] [^4]
+Usually, the `dP_dE` is fixed by a guess value at each line. To enable fitting of background and low-energy tail, you need to specify `vary_bg=True` and `vary_tail=True`, respectively. Both `vary_bg` and  `vary_tail` are defined in `mutes_ana.py`, you can change them if you want to switch on/off. 
 
-[^2]: Fitting with low-energy tail is necessary to achieve a 0.1-eV class accurate energy calibration. But if it is too slow, you just skip the LE-tail fitting by setting `vary_tail=False`.
+Fitting with low-energy tail is necessary to achieve a 0.1-eV class accurate energy calibration. But if it is too slow, you just skip the LE-tail fitting by setting `vary_tail=False`.
 
-[^3]: The optimization procedure is the `MaximumLikelihoodHistogramFitter()`. To fit  with LE-tail, you need to specify boundary conditions for the tail parameters (tail fraction and tail scale length).
+The optimization procedure is the `MaximumLikelihoodHistogramFitter()`. To fit  with LE-tail, you need to specify boundary conditions for the tail parameters (tail fraction and tail scale length).
 
-[^4]: The original `autocal()` code of mass has no setting of the `vary_tail` parameter. This is why the energy calibration has not been accurate even with choosing the proper X-ray lines.
-
-
-
-
+The original `autocal()` code of mass has no setting of the `vary_tail` parameter. This is why the energy calibration has not been accurate even with choosing the proper X-ray lines.
 
 
 ---
