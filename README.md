@@ -27,24 +27,24 @@ export MUTESDATADIR="$MUTESHOME/data"
 # Options
 Be careful, the default value is defined as `False` or `None`.
 For examples:
- 1. calibration run (first)
-```python run_mutes_single.py 76 -R```
- 2. calibration run (to update)
+ - calibration run (first)
+ ```python run_mutes_single.py 76 -R```
+ - calibration run (to update)
 ```python run_mutes_single.py 76 -fsc -R```
- 3. beam run (first)
+ - beam run (first)
 ```python run_mutes_single.py 58,59 -eg -REG```
- 4. beam run (to update)
+ - beam run (to update)
 ```python run_mutes_single.py 58,59 -fsceg -REG```
- 5. to delete the hdf5 file
+ - to delete the hdf5 file
 ```python run_mutes_single.py 58,59 -egd -REG```
- 6. to use 'beam off' or 'spill off' categorical cuts for making filter templates and analyzing with more clean pulses 
+ - to use 'beam off' or 'spill off' categorical cuts for making filter templates and analyzing with more clean pulses 
 ```python run_mutes_single.py 58,59 -egd -REG --beam=off```
- 7. to use selections with group trigger data (e.g., sprmc)
- 8. ```python run_mutes_single.py 58,59 -egd -REG --beam=off --sprmc=on```
- 9. to specify the dataset `TMU_2019I` without changing the environment variables
+ - to use selections with group trigger data (e.g., sprmc) 
+ ```python run_mutes_single.py 58,59 -egd -REG --beam=off --sprmc=on```
+ - to specify the dataset `TMU_2019I` without changing the environment variables
 ```python run_mutes_single.py 1,2 -R --adr=TMU_2019 --cool=I```
 
-- options for analysis
+ ### options for analysis
 ```
 '-f', '--force',    dest='forceNew',   action='store_true',  help='True to update filter (default=False)'
 '-s', '--summary',  dest='summaryNew', action='store_true',  help='True to update summary (default=False)'
@@ -57,7 +57,7 @@ For examples:
 '-G', '--rootgrp',  dest='rootgrp',    action='store_true',  help='True ROOT with groupTrig (default=False)'
 ```
 
-- categorical cuts for analyzing average pulse, filter template, drift correction, etc...
+ ### categorical cuts for analyzing average pulse, filter template, drift correction, etc...
 ```
 '--beam',   dest='beam',     action="store",type=str, help='set beam catecut (default=None, on or off)',default="None")
 '--sprmc',  dest='sprmc',    action="store",type=str, help='set sprmc catecut (default=None, on or off)',default="None")
@@ -65,7 +65,7 @@ For examples:
 '--pre',    dest='cut_pre',  action="store",type=int, help='set cut for pre samples',default=0)
 '--post',   dest='cut_post', action="store",type=int, help='set cut for post samples',default=0)
 ```
-- to specify dataset (from 2019 June)
+ ### to specify dataset (from 2019 June)
 ```
 '--adr',    dest='adr',      action="store",type=str, help='set adr tag (default=TMU_2019, TMU_2018, ...)',default="TMU_2019")
 '--cool',   dest='cool',     action="store",type=str, help='set cooling tag (default=G, A,B,C...)',default="G")
