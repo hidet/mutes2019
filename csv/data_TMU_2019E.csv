@@ -4,4 +4,11 @@ Run_pulse,run_noise,ana_target,exttrig(on/off),grouptrig(on/off),cryotag(AB...Z)
 2,0,Co57,off,off,E,2019/04/10,20:29,03:05,None
 3,3,noise,off,off,E,2019/04/11,03:08,03:08,None
 4,4,noise,off,off,E,2019/04/11,03:24,03:24,None
-
+5,4,Co57,off,off,E,2019/04/11,,,None
+6,6,noise,off,off,E,2019/04/11,,,None
+7,7,noise,off,off,E,2019/04/12,,,None
+8,7,Mn,off,off,E,2019/04/12,,,None
+9,9,noise,off,off,E,2019/04/12,,,None
+10,10,noise,off,off,E,2019/04/13,,,None
+11,10,Mn,off,off,E,2019/04/13,,,None
+12,12,noise,off,off,E,2019/04/13,,,None
