@@ -337,7 +337,7 @@ class MUTES():
         print "\n primary analysis starts... (always update)"
         self.data.register_categorical_cut_field("prime",["on","off"])
         for ds in self.data:
-            if hasattr(ds, 'p_grouptrig'):
+            if hasattr(ds, 'p_grouptrig') and ds.p_grouptrig is not None:
                 grti = np.array(ds.p_grouptrig)# group trig ch info
             else:
                 grti = np.full_like(np.array(ds.good()),-1,dtype=int)
