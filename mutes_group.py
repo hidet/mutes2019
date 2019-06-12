@@ -37,6 +37,9 @@ def calc_group_trigger_params(data,GRTINFO,forceNew=False,maxgrchs=4):
                     return False
             continue
         else:
+            if ds.p_grouptrig is None:
+                print "p_grouptrig is None."
+                return False
             #print "ch%d secondary peak region analysis ..."%(ds.channum)
             print "%d,"%(ds.channum),
             sys.stdout.flush()
@@ -126,6 +129,9 @@ def calc_group_trigger_params_filtered(data,GRTINFO,forceNew=False,maxgrchs=4):
                     return False
             continue
         else:
+            if ds.p_grouptrig is None:
+                print "p_grouptrig is None."
+                return False
             #print "ch%d secondary peak region analysis filtered ..."%(ds.channum)
             print "%d,"%(ds.channum),
             sys.stdout.flush()
